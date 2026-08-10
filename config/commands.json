@@ -1,0 +1,52 @@
+{
+  "commands": [
+    {
+      "name": "open-steam",
+      "phrases": ["open steam", "launch steam", "start steam"],
+      "action": { "type": "launch", "target": "steam://open/main" },
+      "reply": "Opening Steam"
+    },
+    {
+      "name": "open-browser",
+      "phrases": ["open browser", "open chrome", "open the internet"],
+      "action": { "type": "url", "target": "https://www.google.com" },
+      "reply": "Opening your browser"
+    },
+    {
+      "name": "open-youtube",
+      "phrases": ["open youtube", "play youtube"],
+      "action": { "type": "url", "target": "https://www.youtube.com" },
+      "reply": "Opening YouTube"
+    },
+    {
+      "name": "open-notepad",
+      "phrases": ["open notepad", "take a note"],
+      "action": { "type": "launch", "target": "notepad" },
+      "reply": "Opening Notepad"
+    },
+    {
+      "name": "open-calculator",
+      "phrases": ["open calculator", "open the calculator"],
+      "action": { "type": "launch", "target": "calc" },
+      "reply": "Opening the calculator"
+    },
+    {
+      "name": "lock-screen",
+      "phrases": ["lock the screen", "lock my computer"],
+      "action": { "type": "shell", "target": "rundll32.exe user32.dll,LockWorkStation" },
+      "reply": "Locking"
+    },
+    {
+      "name": "what-time",
+      "phrases": ["what time is it", "what's the time", "tell me the time"],
+      "action": { "type": "time", "target": "" },
+      "reply": ""
+    },
+    {
+      "name": "exit",
+      "phrases": ["goodbye", "shut down", "go to sleep", "stop listening"],
+      "action": { "type": "exit", "target": "" },
+      "reply": "Goodbye"
+    }
+  ]
+}

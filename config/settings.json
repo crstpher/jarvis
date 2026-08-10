@@ -1,0 +1,9 @@
+{
+  "wakeWord": "jarvis",
+  "modelPath": "models/vosk-model-small-en-us-0.15",
+  "clapEnabled": true,
+  "clapPattern": "short,short",
+  "clapSensitivity": 6.0,
+  "commandTimeoutMs": 6000,
+  "matchThreshold": 0.4
+}
