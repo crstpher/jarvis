@@ -4,3 +4,4 @@ models/
 *.iml
 .vscode/
 *.log
+dependency-reduced-pom.xml
