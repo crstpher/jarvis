@@ -43,6 +43,14 @@ class CommandMatcherTest {
     }
 
     @Test
+    void scrambledWordOrderStillMatches() {
+        // Grammar-restricted Vosk can emit the right words in the wrong order.
+        var m = matcher().match("steam open");
+        assertTrue(m.isPresent());
+        assertEquals("open-steam", m.get().command().name());
+    }
+
+    @Test
     void gibberishIsRejected() {
         assertTrue(matcher().match("make me a sandwich right now").isEmpty());
     }

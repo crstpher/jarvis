@@ -74,7 +74,7 @@
     },
     {
       "name": "play-pubg",
-      "phrases": ["open pubg", "play pubg", "play battlegrounds"],
+      "phrases": ["open battlegrounds", "play battlegrounds", "open pub g", "play pub g"],
       "action": { "type": "launch", "target": "steam://rungameid/578080" },
       "reply": "Launching PUBG"
     },
@@ -152,7 +152,7 @@
     },
     {
       "name": "close-pubg",
-      "phrases": ["close pubg", "quit pubg"],
+      "phrases": ["close battlegrounds", "quit battlegrounds", "close pub g"],
       "action": { "type": "close", "target": "TslGame*" },
       "reply": "Closing PUBG"
     },

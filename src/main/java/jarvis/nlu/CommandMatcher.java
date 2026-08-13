@@ -5,6 +5,7 @@ import jarvis.actions.CommandSpec;
 
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Maps a (possibly slightly wrong) transcript to the best known command.
@@ -41,7 +42,8 @@ public class CommandMatcher {
         for (CommandSpec cmd : registry.commands()) {
             for (String phrase : cmd.phrases()) {
                 String p = normalise(phrase);
-                double score = text.contains(p) ? 0.0 : Levenshtein.normalised(text, p);
+                double score = text.contains(p) ? 0.0
+                        : Math.min(Levenshtein.normalised(text, p), tokenScore(text, p));
                 if (best == null || score < best.score()) {
                     best = new Match(cmd, score, phrase);
                 }
@@ -51,6 +53,23 @@ public class CommandMatcher {
             return Optional.of(best);
         }
         return Optional.empty();
+    }
+
+    /**
+     * Order-insensitive score: the fraction of the phrase's words missing
+     * from the transcript. Catches word-order scrambles like
+     * "marvel rivals start open" vs "open marvel rivals".
+     * Single-word phrases don't qualify (too easy to hit by accident).
+     */
+    static double tokenScore(String text, String phrase) {
+        String[] phraseWords = phrase.split(" ");
+        if (phraseWords.length < 2) return 1.0;
+        Set<String> textWords = Set.of(text.split(" "));
+        int missing = 0;
+        for (String w : phraseWords) {
+            if (!textWords.contains(w)) missing++;
+        }
+        return missing / (double) phraseWords.length;
     }
 
     public static String normalise(String s) {
