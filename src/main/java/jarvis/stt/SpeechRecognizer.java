@@ -39,16 +39,20 @@ public class SpeechRecognizer implements AutoCloseable {
 
     /** Feed an idle-mode frame; true if the wake word was just heard. */
     public boolean feedWake(byte[] frame) {
-        boolean endOfUtterance = wakeRecognizer.acceptWaveForm(frame, frame.length);
-        String json = endOfUtterance ? wakeRecognizer.getResult() : wakeRecognizer.getPartialResult();
-        String field = endOfUtterance ? "text" : "partial";
-        String heard = JsonParser.parseString(json).getAsJsonObject()
-                .get(field).getAsString();
-        if (heard.contains(wakeWord)) {
+        if (feedWakeHearing(frame).contains(wakeWord)) {
             wakeRecognizer.reset();
             return true;
         }
         return false;
+    }
+
+    /** Feed an idle-mode frame and return whatever the wake recognizer currently hears. */
+    public String feedWakeHearing(byte[] frame) {
+        boolean endOfUtterance = wakeRecognizer.acceptWaveForm(frame, frame.length);
+        String json = endOfUtterance ? wakeRecognizer.getResult() : wakeRecognizer.getPartialResult();
+        String field = endOfUtterance ? "text" : "partial";
+        return JsonParser.parseString(json).getAsJsonObject()
+                .get(field).getAsString();
     }
 
     /**

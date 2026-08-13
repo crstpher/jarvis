@@ -15,6 +15,8 @@ public class Settings {
 
     public String wakeWord = "jarvis";
     public String modelPath = "models/vosk-model-small-en-us-0.15";
+    /** Substring of the microphone name to capture from; "" = Windows default device. */
+    public String inputDevice = "";
     public boolean clapEnabled = true;
     /** Gap pattern between claps, e.g. "short,short" = three quick claps. */
     public String clapPattern = "short,short";

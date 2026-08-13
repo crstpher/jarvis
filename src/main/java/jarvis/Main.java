@@ -19,6 +19,11 @@ public class Main {
             return;
         }
 
+        if (args.length > 0 && args[0].equals("--mic")) {
+            jarvis.util.MicCheck.run(settings, 25);
+            return;
+        }
+
         if (!Files.isDirectory(Path.of(settings.modelPath))) {
             System.err.println("Speech model not found at: " + settings.modelPath);
             System.err.println("Run setup.ps1 first to download it (~40 MB, one time only).");

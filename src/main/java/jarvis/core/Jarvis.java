@@ -38,7 +38,7 @@ public class Jarvis {
     private final ClapPatternFSM clapFSM;
 
     private final BlockingQueue<byte[]> frames = new ArrayBlockingQueue<>(256);
-    private final AudioCapture capture = new AudioCapture(frames);
+    private final AudioCapture capture;
 
     private State state = State.IDLE;
     private long listeningSince;
@@ -46,6 +46,7 @@ public class Jarvis {
 
     public Jarvis(Settings settings, CommandRegistry registry) throws Exception {
         this.settings = settings;
+        this.capture = new AudioCapture(frames, settings.inputDevice);
         this.stt = new SpeechRecognizer(settings.modelPath, settings.wakeWord);
         this.matcher = new CommandMatcher(registry, settings.matchThreshold);
         this.speaker = new Speaker();
