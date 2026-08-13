@@ -85,6 +85,90 @@
       "reply": "Launching Counter-Strike 2"
     },
     {
+      "name": "close-marvel-rivals",
+      "phrases": ["close marvel rivals", "quit marvel rivals"],
+      "action": { "type": "close", "target": "Marvel*" },
+      "reply": "Closing Marvel Rivals"
+    },
+    {
+      "name": "close-apex",
+      "phrases": ["close apex", "quit apex"],
+      "action": { "type": "close", "target": "r5apex*" },
+      "reply": "Closing Apex Legends"
+    },
+    {
+      "name": "close-red-dead",
+      "phrases": ["close red dead", "quit red dead"],
+      "action": { "type": "close", "target": "RDR2.exe" },
+      "reply": "Closing Red Dead Redemption 2"
+    },
+    {
+      "name": "close-battlefront",
+      "phrases": ["close battlefront", "quit battlefront"],
+      "action": { "type": "close", "target": "starwarsbattlefrontii*" },
+      "reply": "Closing Battlefront 2"
+    },
+    {
+      "name": "close-it-takes-two",
+      "phrases": ["close it takes two", "quit it takes two"],
+      "action": { "type": "close", "target": "ItTakesTwo*" },
+      "reply": "Closing It Takes Two"
+    },
+    {
+      "name": "close-arc-raiders",
+      "phrases": ["close arc raiders", "quit arc raiders"],
+      "action": { "type": "close", "target": "PioneerGame*" },
+      "reply": "Closing Arc Raiders"
+    },
+    {
+      "name": "close-the-finals",
+      "phrases": ["close the finals", "quit the finals"],
+      "action": { "type": "close", "target": "Discovery*" },
+      "reply": "Closing The Finals"
+    },
+    {
+      "name": "close-rocket-league",
+      "phrases": ["close rocket league", "quit rocket league"],
+      "action": { "type": "close", "target": "RocketLeague.exe" },
+      "reply": "Closing Rocket League"
+    },
+    {
+      "name": "close-battlefield",
+      "phrases": ["close battlefield", "quit battlefield"],
+      "action": { "type": "close", "target": "bf6.exe" },
+      "reply": "Closing Battlefield 6"
+    },
+    {
+      "name": "close-gta",
+      "phrases": ["close gta", "quit gta", "close grand theft auto"],
+      "action": { "type": "close", "target": "GTA5*" },
+      "reply": "Closing GTA 5"
+    },
+    {
+      "name": "close-dead-by-daylight",
+      "phrases": ["close dead by daylight", "quit dead by daylight"],
+      "action": { "type": "close", "target": "DeadByDaylight*" },
+      "reply": "Closing Dead by Daylight"
+    },
+    {
+      "name": "close-pubg",
+      "phrases": ["close pubg", "quit pubg"],
+      "action": { "type": "close", "target": "TslGame*" },
+      "reply": "Closing PUBG"
+    },
+    {
+      "name": "close-cs2",
+      "phrases": ["close counter strike", "quit counter strike", "close cs two"],
+      "action": { "type": "close", "target": "cs2.exe" },
+      "reply": "Closing Counter-Strike 2"
+    },
+    {
+      "name": "close-steam",
+      "phrases": ["close steam", "quit steam"],
+      "action": { "type": "shell", "target": "Start-Process 'D:\\Steam\\steam.exe' -ArgumentList '-shutdown'" },
+      "reply": "Closing Steam"
+    },
+    {
       "name": "open-browser",
       "phrases": ["open browser", "open chrome", "open the internet"],
       "action": { "type": "url", "target": "https://www.google.com" },

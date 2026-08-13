@@ -45,6 +45,8 @@ public class Jarvis {
     private long wakeAt;
     /** Ignore wake triggers until this time - stops Jarvis waking itself with its own voice. */
     private long muteWakeUntil;
+    /** Skip command frames until this time, so the wake chime isn't transcribed. */
+    private long skipCommandUntil;
 
     public Jarvis(Settings settings, CommandRegistry registry) throws Exception {
         this.settings = settings;
@@ -103,10 +105,12 @@ public class Jarvis {
         state = State.LISTENING;
         wakeAt = System.currentTimeMillis();
         listeningSince = wakeAt;
+        skipCommandUntil = wakeAt + 350; // let the chime finish before transcribing
         System.out.println("[state] LISTENING...");
     }
 
     private void listeningFrame(byte[] frame, long now) {
+        if (now < skipCommandUntil) return;
         String transcript = stt.feedCommand(frame);
         if (transcript == null && now - listeningSince > settings.commandTimeoutMs) {
             transcript = stt.finishCommand();

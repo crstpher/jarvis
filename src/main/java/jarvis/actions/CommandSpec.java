@@ -10,6 +10,7 @@ import java.util.List;
  *            "notepad", "steam://open/main", or a full .exe path
  *   url    - open a web page in the default browser
  *   shell  - run an arbitrary PowerShell command
+ *   close  - kill a process by image name (wildcards allowed, e.g. "Marvel*")
  *   time   - speak the current time (no target needed)
  *   exit   - shut the assistant down
  */

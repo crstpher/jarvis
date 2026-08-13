@@ -28,6 +28,13 @@ public class ActionExecutor {
             case "shell" -> {
                 new ProcessBuilder("powershell", "-NoProfile", "-Command", action.target()).start();
             }
+            case "close" -> {
+                // Image name may contain a wildcard, e.g. "Marvel*".
+                new ProcessBuilder("taskkill", "/F", "/IM", action.target())
+                        .redirectErrorStream(true)
+                        .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                        .start();
+            }
             case "time" -> {
                 String time = LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm a"));
                 reply = "It's " + time;
