@@ -43,6 +43,8 @@ public class Jarvis {
     private State state = State.IDLE;
     private long listeningSince;
     private long wakeAt;
+    /** Ignore wake triggers until this time - stops Jarvis waking itself with its own voice. */
+    private long muteWakeUntil;
 
     public Jarvis(Settings settings, CommandRegistry registry) throws Exception {
         this.settings = settings;
@@ -80,6 +82,9 @@ public class Jarvis {
     }
 
     private void idleFrame(byte[] frame, long now) {
+        if (now < muteWakeUntil) {
+            return; // still speaking a reply; don't listen to ourselves
+        }
         if (clapFSM != null && clapDetector.process(frame, now) && clapFSM.onClap(now)) {
             System.out.println("[wake] clap pattern recognised");
             wake();
@@ -119,13 +124,13 @@ public class Jarvis {
     private void handleTranscript(String transcript, long sttDoneAt) {
         System.out.println("[stt] heard: \"" + transcript + "\"");
         if (transcript.isBlank()) {
-            speaker.say("I didn't catch that");
+            reply("I didn't catch that");
             return;
         }
 
         var match = matcher.match(transcript);
         if (match.isEmpty()) {
-            speaker.say("Sorry, I don't know that one");
+            reply("Sorry, I don't know that one");
             return;
         }
 
@@ -136,7 +141,7 @@ public class Jarvis {
             long done = System.currentTimeMillis();
             System.out.printf("[latency] listen %dms | act %dms | wake-to-done %dms%n",
                     sttDoneAt - wakeAt, done - sttDoneAt, done - wakeAt);
-            speaker.say(reply);
+            reply(reply);
         } catch (ActionExecutor.ExitRequested e) {
             speaker.say(e.getMessage());
             try { Thread.sleep(1800); } catch (InterruptedException ignored) {}
@@ -144,8 +149,22 @@ public class Jarvis {
             System.exit(0);
         } catch (Exception e) {
             System.err.println("[action] failed: " + e.getMessage());
-            speaker.say("That didn't work");
+            reply("That didn't work");
         }
+    }
+
+    /**
+     * Speak a reply and mute wake detection while it plays, so the
+     * assistant doesn't hear its own voice through the speakers and
+     * trigger itself. Duration is a rough words-per-minute estimate.
+     */
+    private void reply(String text) {
+        long speakMs = 800 + text.split("\\s+").length * 350L;
+        muteWakeUntil = System.currentTimeMillis() + speakMs;
+        speaker.say(text);
+        // Drop anything the wake recognizer buffered while we were talking.
+        stt.resetWake();
+        if (clapFSM != null) clapFSM.reset();
     }
 
     private void shutdown() {
