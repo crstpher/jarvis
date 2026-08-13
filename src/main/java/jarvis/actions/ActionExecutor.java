@@ -28,13 +28,7 @@ public class ActionExecutor {
             case "shell" -> {
                 new ProcessBuilder("powershell", "-NoProfile", "-Command", action.target()).start();
             }
-            case "close" -> {
-                // Image name may contain a wildcard, e.g. "Marvel*".
-                new ProcessBuilder("taskkill", "/F", "/IM", action.target())
-                        .redirectErrorStream(true)
-                        .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                        .start();
-            }
+            case "close" -> close(cmd);
             case "time" -> {
                 String time = LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm a"));
                 reply = "It's " + time;
@@ -45,5 +39,31 @@ public class ActionExecutor {
             }
         }
         return reply;
+    }
+
+    /**
+     * Kill the target process. Some games (e.g. Marvel Rivals) run
+     * elevated, so a normal-privilege taskkill is denied. setup-admin.ps1
+     * registers an elevated Task Scheduler task per close command
+     * ("Jarvis kill <name>"); triggering our own pre-approved task needs
+     * no UAC prompt. If the task doesn't exist we fall back to plain
+     * taskkill, which is enough for normal apps.
+     */
+    private void close(CommandSpec cmd) throws IOException {
+        try {
+            Process task = new ProcessBuilder("schtasks", "/run", "/tn", "Jarvis kill " + cmd.name())
+                    .redirectErrorStream(true)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .start();
+            if (task.waitFor() == 0) {
+                return;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        new ProcessBuilder("taskkill", "/F", "/IM", cmd.action().target())
+                .redirectErrorStream(true)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .start();
     }
 }
