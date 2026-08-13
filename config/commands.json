@@ -7,6 +7,84 @@
       "reply": "Opening Steam"
     },
     {
+      "name": "play-marvel-rivals",
+      "phrases": ["open marvel rivals", "play marvel rivals", "start marvel rivals"],
+      "action": { "type": "launch", "target": "steam://rungameid/2767030" },
+      "reply": "Launching Marvel Rivals"
+    },
+    {
+      "name": "play-apex",
+      "phrases": ["open apex", "play apex", "play apex legends"],
+      "action": { "type": "launch", "target": "steam://rungameid/1172470" },
+      "reply": "Launching Apex Legends"
+    },
+    {
+      "name": "play-red-dead",
+      "phrases": ["open red dead", "play red dead", "play red dead redemption"],
+      "action": { "type": "launch", "target": "steam://rungameid/1174180" },
+      "reply": "Launching Red Dead Redemption 2"
+    },
+    {
+      "name": "play-battlefront",
+      "phrases": ["open battlefront", "play battlefront", "play star wars battlefront"],
+      "action": { "type": "launch", "target": "steam://rungameid/1237950" },
+      "reply": "Launching Battlefront 2"
+    },
+    {
+      "name": "play-it-takes-two",
+      "phrases": ["open it takes two", "play it takes two"],
+      "action": { "type": "launch", "target": "steam://rungameid/1426210" },
+      "reply": "Launching It Takes Two"
+    },
+    {
+      "name": "play-arc-raiders",
+      "phrases": ["open arc raiders", "play arc raiders"],
+      "action": { "type": "launch", "target": "steam://rungameid/1808500" },
+      "reply": "Launching Arc Raiders"
+    },
+    {
+      "name": "play-the-finals",
+      "phrases": ["open the finals", "play the finals"],
+      "action": { "type": "launch", "target": "steam://rungameid/2073850" },
+      "reply": "Launching The Finals"
+    },
+    {
+      "name": "play-rocket-league",
+      "phrases": ["open rocket league", "play rocket league"],
+      "action": { "type": "launch", "target": "steam://rungameid/252950" },
+      "reply": "Launching Rocket League"
+    },
+    {
+      "name": "play-battlefield",
+      "phrases": ["open battlefield", "play battlefield", "play battlefield six"],
+      "action": { "type": "launch", "target": "steam://rungameid/2807960" },
+      "reply": "Launching Battlefield 6"
+    },
+    {
+      "name": "play-gta",
+      "phrases": ["open gta", "play gta", "play gta five", "open grand theft auto"],
+      "action": { "type": "launch", "target": "steam://rungameid/3240220" },
+      "reply": "Launching GTA 5"
+    },
+    {
+      "name": "play-dead-by-daylight",
+      "phrases": ["open dead by daylight", "play dead by daylight"],
+      "action": { "type": "launch", "target": "steam://rungameid/381210" },
+      "reply": "Launching Dead by Daylight"
+    },
+    {
+      "name": "play-pubg",
+      "phrases": ["open pubg", "play pubg", "play battlegrounds"],
+      "action": { "type": "launch", "target": "steam://rungameid/578080" },
+      "reply": "Launching PUBG"
+    },
+    {
+      "name": "play-cs2",
+      "phrases": ["open counter strike", "play counter strike", "play cs two", "open cs two"],
+      "action": { "type": "launch", "target": "steam://rungameid/730" },
+      "reply": "Launching Counter-Strike 2"
+    },
+    {
       "name": "open-browser",
       "phrases": ["open browser", "open chrome", "open the internet"],
       "action": { "type": "url", "target": "https://www.google.com" },
