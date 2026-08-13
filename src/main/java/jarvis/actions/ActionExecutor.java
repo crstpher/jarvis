@@ -50,20 +50,39 @@ public class ActionExecutor {
      * taskkill, which is enough for normal apps.
      */
     private void close(CommandSpec cmd) throws IOException {
+        String image = cmd.action().target();
+        boolean wasRunning = isRunning(image);
+        System.out.println("[close] target " + image + " running=" + wasRunning);
+
         try {
             Process task = new ProcessBuilder("schtasks", "/run", "/tn", "Jarvis kill " + cmd.name())
-                    .redirectErrorStream(true)
-                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                    .start();
-            if (task.waitFor() == 0) {
-                return;
+                    .redirectErrorStream(true).start();
+            int rc = task.waitFor();
+            System.out.println("[close] elevated task rc=" + rc);
+            if (rc != 0) {
+                Process kill = new ProcessBuilder("taskkill", "/F", "/IM", image)
+                        .redirectErrorStream(true).start();
+                System.out.println("[close] fallback taskkill rc=" + kill.waitFor());
             }
+            // The scheduled task runs asynchronously; give it a moment.
+            Thread.sleep(1200);
+            System.out.println("[close] still running after kill=" + isRunning(image));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        new ProcessBuilder("taskkill", "/F", "/IM", cmd.action().target())
-                .redirectErrorStream(true)
-                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                .start();
+    }
+
+    /** True if any running process matches the image name (wildcards allowed). */
+    private boolean isRunning(String image) {
+        try {
+            Process p = new ProcessBuilder("tasklist", "/FI", "IMAGENAME eq " + image)
+                    .redirectErrorStream(true).start();
+            String out = new String(p.getInputStream().readAllBytes());
+            p.waitFor();
+            String stem = image.replace("*", "").replace(".exe", "");
+            return out.toLowerCase().contains(stem.toLowerCase());
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

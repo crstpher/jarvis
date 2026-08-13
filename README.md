@@ -59,7 +59,13 @@ mvn package        # builds target/jarvis-1.0.0.jar (runs the tests too)
 ```powershell
 ./run.ps1                # or: java -jar target/jarvis-1.0.0.jar
 ./run.ps1 --check        # environment sanity check (no mic capture)
+./run.ps1 --mic          # live mic level meter + what the recognizer hears
+./stop.ps1               # kill any running Jarvis (say "goodbye" also works)
 ```
+
+Closing games that run as administrator (e.g. Marvel Rivals) needs a
+one-time approval — run `./setup-admin.ps1` and accept the UAC prompt.
+Re-run it whenever you add a new `close` command.
 
 Then: say **"Jarvis"** → wait for the chime → say **"open steam"**.
 
