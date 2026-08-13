@@ -6,5 +6,6 @@
   "clapPattern": "short,short",
   "clapSensitivity": 6.0,
   "commandTimeoutMs": 6000,
-  "matchThreshold": 0.4
+  "matchThreshold": 0.4,
+  "strictGrammar": true
 }

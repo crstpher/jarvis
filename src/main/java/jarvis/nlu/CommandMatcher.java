@@ -53,7 +53,7 @@ public class CommandMatcher {
         return Optional.empty();
     }
 
-    static String normalise(String s) {
+    public static String normalise(String s) {
         String text = s.toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9 ]", " ")
                 .replaceAll("\\s+", " ")

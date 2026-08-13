@@ -1,5 +1,6 @@
 package jarvis.stt;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonParser;
 import org.vosk.LibVosk;
 import org.vosk.LogLevel;
@@ -7,6 +8,8 @@ import org.vosk.Model;
 import org.vosk.Recognizer;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -29,12 +32,29 @@ public class SpeechRecognizer implements AutoCloseable {
     private final String wakeWord;
 
     public SpeechRecognizer(String modelPath, String wakeWord) throws IOException {
+        this(modelPath, wakeWord, List.of());
+    }
+
+    /**
+     * @param commandPhrases if non-empty, the command recognizer's grammar
+     *   is restricted to these phrases (plus [unk] for everything else).
+     *   Mishearings then snap to the closest known phrase instead of
+     *   drifting to arbitrary words - more accurate AND faster.
+     */
+    public SpeechRecognizer(String modelPath, String wakeWord, List<String> commandPhrases)
+            throws IOException {
         LibVosk.setLogLevel(LogLevel.WARNINGS);
         this.model = new Model(modelPath);
         this.wakeWord = wakeWord.toLowerCase(Locale.ROOT);
         this.wakeRecognizer = new Recognizer(model, SAMPLE_RATE,
                 "[\"" + this.wakeWord + "\", \"[unk]\"]");
-        this.commandRecognizer = new Recognizer(model, SAMPLE_RATE);
+        if (commandPhrases == null || commandPhrases.isEmpty()) {
+            this.commandRecognizer = new Recognizer(model, SAMPLE_RATE);
+        } else {
+            List<String> grammar = new ArrayList<>(commandPhrases);
+            grammar.add("[unk]");
+            this.commandRecognizer = new Recognizer(model, SAMPLE_RATE, new Gson().toJson(grammar));
+        }
     }
 
     /** Feed an idle-mode frame; true if the wake word was just heard. */
@@ -81,7 +101,10 @@ public class SpeechRecognizer implements AutoCloseable {
 
     private static String extractText(String resultJson) {
         return JsonParser.parseString(resultJson).getAsJsonObject()
-                .get("text").getAsString().trim();
+                .get("text").getAsString()
+                .replace("[unk]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     @Override

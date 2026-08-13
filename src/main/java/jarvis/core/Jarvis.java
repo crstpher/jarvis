@@ -51,7 +51,13 @@ public class Jarvis {
     public Jarvis(Settings settings, CommandRegistry registry) throws Exception {
         this.settings = settings;
         this.capture = new AudioCapture(frames, settings.inputDevice);
-        this.stt = new SpeechRecognizer(settings.modelPath, settings.wakeWord);
+        var grammar = settings.strictGrammar
+                ? registry.commands().stream()
+                    .flatMap(c -> c.phrases().stream())
+                    .map(CommandMatcher::normalise)
+                    .distinct().toList()
+                : java.util.List.<String>of();
+        this.stt = new SpeechRecognizer(settings.modelPath, settings.wakeWord, grammar);
         this.matcher = new CommandMatcher(registry, settings.matchThreshold);
         this.speaker = new Speaker();
         this.clapDetector = new ClapDetector(settings.clapSensitivity);

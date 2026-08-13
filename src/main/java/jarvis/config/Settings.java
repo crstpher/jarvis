@@ -26,6 +26,12 @@ public class Settings {
     public long commandTimeoutMs = 6000;
     /** Fuzzy-match acceptance threshold (0 = exact only, 1 = accept anything). */
     public double matchThreshold = 0.4;
+    /**
+     * Restrict command recognition to the phrases in commands.json.
+     * More accurate and faster; turn off only if you want free-form
+     * transcripts (e.g. for a future dictation feature).
+     */
+    public boolean strictGrammar = true;
 
     public static Settings load(Path path) {
         if (!Files.exists(path)) {
