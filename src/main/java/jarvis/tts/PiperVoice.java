@@ -18,13 +18,13 @@ public class PiperVoice extends StreamingVoice {
      * @param modelOnnx  path to the .onnx voice model
      * @param sampleRate model's sample rate (22050 for the "medium" voices)
      */
-    public PiperVoice(Path piperExe, Path modelOnnx, int sampleRate) throws IOException {
+    public PiperVoice(Path piperExe, Path modelOnnx, int sampleRate, String outputDevice)
+            throws IOException {
         super(List.of(piperExe.toString(),
                         "--model", modelOnnx.toString(),
                         "--output_raw"),
                 Map.of(),
-                sampleRate);
-        // Constructor already launched it; validation below is for clear errors.
+                sampleRate, outputDevice);
     }
 
     /** Everything Piper needs is present. */

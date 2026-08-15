@@ -19,10 +19,10 @@ public class KokoroVoice extends StreamingVoice {
     public static final int SAMPLE_RATE = 24000;
 
     public KokoroVoice(String python, Path script, Path model, Path voices,
-                       String voiceName, double speed) throws IOException {
+                       String voiceName, double speed, String outputDevice) throws IOException {
         super(List.of(python, "-u", script.toString()),
                 env(model, voices, voiceName, speed),
-                SAMPLE_RATE);
+                SAMPLE_RATE, outputDevice);
     }
 
     private static Map<String, String> env(Path model, Path voices, String voiceName, double speed) {

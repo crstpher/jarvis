@@ -59,6 +59,8 @@ public class Settings {
      * (built-in Windows voice). Each falls back to the next if unavailable.
      */
     public String voice = "kokoro";
+    /** Substring of the speaker device to play through; "" = Windows default. */
+    public String outputDevice = "";
 
     public String pythonExe = "python";
     public String kokoroScript = "tools/kokoro/kokoro_server.py";

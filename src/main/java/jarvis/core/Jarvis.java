@@ -102,7 +102,8 @@ public class Jarvis {
                         Path.of(settings.kokoroModel),
                         Path.of(settings.kokoroVoices),
                         settings.kokoroVoiceName,
-                        settings.kokoroSpeed);
+                        settings.kokoroSpeed,
+                        settings.outputDevice);
                 System.out.println("[tts] kokoro neural voice (" + settings.kokoroVoiceName + ")");
                 return v;
             } catch (Exception e) {
@@ -116,7 +117,8 @@ public class Jarvis {
             try {
                 PiperVoice.verify(Path.of(settings.piperExe), Path.of(settings.piperModel));
                 Voice v = new PiperVoice(Path.of(settings.piperExe),
-                        Path.of(settings.piperModel), settings.piperSampleRate);
+                        Path.of(settings.piperModel), settings.piperSampleRate,
+                        settings.outputDevice);
                 System.out.println("[tts] piper neural voice");
                 return v;
             } catch (Exception e) {
@@ -173,8 +175,13 @@ public class Jarvis {
         Voice voice = buildVoice(settings);
         System.out.println("[say] " + line);
         voice.say(line);
-        // Give the engine time to synthesise and the audio to drain.
-        Thread.sleep(voice.estimateMillis(line) + 2500);
+        if (voice instanceof jarvis.tts.StreamingVoice sv) {
+            // Wait for real silence rather than guessing: the first
+            // utterance also pays the model's load time.
+            sv.awaitQuiet(1200, 60_000);
+        } else {
+            Thread.sleep(voice.estimateMillis(line) + 1500);
+        }
         voice.close();
     }
 
