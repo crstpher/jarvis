@@ -1,6 +1,7 @@
 package jarvis.tts;
 
 import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
 import javax.sound.sampled.Mixer;
@@ -46,28 +47,63 @@ public abstract class StreamingVoice implements Voice {
         pump.start();
     }
 
-    /** Continuously copy the engine's PCM output to the speakers. */
+    /**
+     * Continuously copy the engine's PCM output to the speakers,
+     * resampling first if the engine's native rate is one the sound card
+     * handles badly.
+     */
     private void playStream(InputStream in, int sampleRate, String outputDevice) {
-        AudioFormat format = new AudioFormat(sampleRate, 16, 1, true, false);
-        try (SourceDataLine line = openLine(format, outputDevice)) {
-            line.open(format, 16384);
-            line.start();
-            activeLine = line;
-            byte[] buf = new byte[4096];
-            int n;
-            long total = 0;
-            while (running && (n = in.read(buf)) > 0) {
-                if (total == 0) System.out.println("[tts] audio flowing");
-                total += n;
-                line.write(buf, 0, n);
-                lastAudioAt = System.currentTimeMillis();
+        AudioFormat source = new AudioFormat(sampleRate, 16, 1, true, false);
+        try {
+            AudioFormat target = choosePlaybackFormat(source);
+            InputStream audio = in;
+            if (!target.matches(source)) {
+                System.out.printf("[tts] resampling %.0fHz -> %.0fHz for playback%n",
+                        source.getSampleRate(), target.getSampleRate());
+                audio = AudioSystem.getAudioInputStream(target,
+                        new AudioInputStream(in, source, AudioSystem.NOT_SPECIFIED));
             }
-            if (running) System.out.println("[tts] engine closed the stream after " + total + " bytes");
+
+            try (SourceDataLine line = openLine(target, outputDevice)) {
+                line.open(target, 16384);
+                line.start();
+                activeLine = line;
+                byte[] buf = new byte[4096];
+                int n;
+                long total = 0;
+                while (running && (n = audio.read(buf)) > 0) {
+                    if (total == 0) System.out.println("[tts] audio flowing");
+                    total += n;
+                    line.write(buf, 0, n);
+                    lastAudioAt = System.currentTimeMillis();
+                }
+                if (running) System.out.println("[tts] engine closed the stream after " + total + " bytes");
+            }
         } catch (Exception e) {
             if (running) System.err.println("[tts] audio stream failed: " + e);
         } finally {
             activeLine = null;
         }
+    }
+
+    /**
+     * Pick a playback format the sound card actually renders.
+     *
+     * Some Windows drivers report an unusual rate as supported and then
+     * play silence — 24kHz (Kokoro's native rate) is one such case here.
+     * Preferring the rates every card handles, and resampling into them,
+     * is more reliable than trusting isLineSupported alone.
+     */
+    private static AudioFormat choosePlaybackFormat(AudioFormat source) {
+        float[] preferred = {44100f, 48000f};
+        for (float rate : preferred) {
+            AudioFormat candidate = new AudioFormat(rate, 16, 1, true, false);
+            if (AudioSystem.isLineSupported(new DataLine.Info(SourceDataLine.class, candidate))
+                    && AudioSystem.isConversionSupported(candidate, source)) {
+                return candidate;
+            }
+        }
+        return source; // nothing better available; try the native rate
     }
 
     /**
