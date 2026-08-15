@@ -54,8 +54,20 @@ public class Settings {
             + "rambling is not.";
 
     // --- voice ----------------------------------------------------------
-    /** "piper" for the neural voice, "sapi" for the built-in Windows one. */
-    public String voice = "piper";
+    /**
+     * "kokoro" (most natural), "piper" (lighter, no Python), or "sapi"
+     * (built-in Windows voice). Each falls back to the next if unavailable.
+     */
+    public String voice = "kokoro";
+
+    public String pythonExe = "python";
+    public String kokoroScript = "tools/kokoro/kokoro_server.py";
+    public String kokoroModel = "tools/kokoro/kokoro-v1.0.onnx";
+    public String kokoroVoices = "tools/kokoro/voices-v1.0.bin";
+    /** British male: bm_george, bm_lewis, bm_daniel, bm_fable. */
+    public String kokoroVoiceName = "bm_george";
+    public double kokoroSpeed = 1.0;
+
     public String piperExe = "tools/piper/piper.exe";
     public String piperModel = "tools/piper/en_GB-alan-medium.onnx";
     public int piperSampleRate = 22050;

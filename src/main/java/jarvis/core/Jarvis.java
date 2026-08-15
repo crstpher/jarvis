@@ -11,6 +11,7 @@ import jarvis.nlu.CommandMatcher;
 import jarvis.spotify.SpotifyAuth;
 import jarvis.spotify.SpotifyClient;
 import jarvis.stt.SpeechRecognizer;
+import jarvis.tts.KokoroVoice;
 import jarvis.tts.PiperVoice;
 import jarvis.tts.Speaker;
 import jarvis.tts.Voice;
@@ -85,19 +86,45 @@ public class Jarvis {
         this.brain = buildBrain(settings, registry);
     }
 
-    /** Neural voice if configured and present, otherwise the Windows one. */
+    /**
+     * Pick the best available voice, degrading gracefully:
+     * Kokoro (most natural) -> Piper (lighter) -> Windows SAPI (always works).
+     */
     private static Voice buildVoice(Settings settings) throws Exception {
-        if ("piper".equalsIgnoreCase(settings.voice)) {
+        String choice = settings.voice == null ? "kokoro" : settings.voice.toLowerCase();
+
+        if (choice.equals("kokoro")) {
             try {
+                KokoroVoice.verify(Path.of(settings.kokoroScript),
+                        Path.of(settings.kokoroModel), Path.of(settings.kokoroVoices));
+                Voice v = new KokoroVoice(settings.pythonExe,
+                        Path.of(settings.kokoroScript),
+                        Path.of(settings.kokoroModel),
+                        Path.of(settings.kokoroVoices),
+                        settings.kokoroVoiceName,
+                        settings.kokoroSpeed);
+                System.out.println("[tts] kokoro neural voice (" + settings.kokoroVoiceName + ")");
+                return v;
+            } catch (Exception e) {
+                System.err.println("[tts] kokoro unavailable (" + e.getMessage()
+                        + ") - trying piper. Run setup-voice.ps1 to install it.");
+                choice = "piper";
+            }
+        }
+
+        if (choice.equals("piper")) {
+            try {
+                PiperVoice.verify(Path.of(settings.piperExe), Path.of(settings.piperModel));
                 Voice v = new PiperVoice(Path.of(settings.piperExe),
                         Path.of(settings.piperModel), settings.piperSampleRate);
-                System.out.println("[tts] neural voice (piper)");
+                System.out.println("[tts] piper neural voice");
                 return v;
             } catch (Exception e) {
                 System.err.println("[tts] piper unavailable (" + e.getMessage()
-                        + ") - falling back to the Windows voice. Run setup-ai.ps1 to install it.");
+                        + ") - falling back to the Windows voice.");
             }
         }
+
         System.out.println("[tts] windows voice (sapi)");
         return new Speaker();
     }
@@ -136,6 +163,19 @@ public class Jarvis {
         return new Brain(client,
                 new ToolBox(registry, matcher, executor, spotify),
                 settings.persona);
+    }
+
+    /**
+     * Speak one line using the configured voice, then stop. Used by
+     * --say to audition voices without involving the microphone.
+     */
+    public static void speakOnce(Settings settings, String line) throws Exception {
+        Voice voice = buildVoice(settings);
+        System.out.println("[say] " + line);
+        voice.say(line);
+        // Give the engine time to synthesise and the audio to drain.
+        Thread.sleep(voice.estimateMillis(line) + 2500);
+        voice.close();
     }
 
     public void run() {

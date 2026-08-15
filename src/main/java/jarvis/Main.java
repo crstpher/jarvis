@@ -29,6 +29,15 @@ public class Main {
             return;
         }
 
+        // Speak a line and exit - for auditioning voices without a microphone.
+        if (args.length > 0 && args[0].equals("--say")) {
+            String line = args.length > 1
+                    ? String.join(" ", java.util.Arrays.copyOfRange(args, 1, args.length))
+                    : "Certainly, sir. All systems are online.";
+            jarvis.core.Jarvis.speakOnce(settings, line);
+            return;
+        }
+
         if (!Files.isDirectory(Path.of(settings.modelPath))) {
             System.err.println("Speech model not found at: " + settings.modelPath);
             System.err.println("Run setup.ps1 first to download it (~40 MB, one time only).");
@@ -68,10 +77,15 @@ public class Main {
             }
         }
 
-        System.out.println("Voice: " + settings.voice
-                + (settings.voice.equalsIgnoreCase("piper")
-                    ? (Files.exists(Path.of(settings.piperExe)) ? " [OK]" : " [MISSING - run setup-ai.ps1]")
-                    : ""));
+        String voiceStatus = switch (settings.voice == null ? "" : settings.voice.toLowerCase()) {
+            case "kokoro" -> Files.exists(Path.of(settings.kokoroModel))
+                    ? " (" + settings.kokoroVoiceName + ") [OK]"
+                    : " [MISSING - run setup-voice.ps1]";
+            case "piper" -> Files.exists(Path.of(settings.piperExe))
+                    ? " [OK]" : " [MISSING - run setup-voice.ps1]";
+            default -> " [OK]";
+        };
+        System.out.println("Voice: " + settings.voice + voiceStatus);
 
         if (settings.aiEnabled) {
             var ai = new jarvis.ai.OllamaClient(settings.ollamaUrl, settings.ollamaModel, settings.aiMaxTokens);
