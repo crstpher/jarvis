@@ -44,6 +44,49 @@ public class KokoroVoice extends StreamingVoice {
     }
 
     /**
+     * Find a usable Python.
+     *
+     * A terminal opened before Python was installed still carries a stale
+     * PATH, so "python" alone is not dependable. Fall back to the standard
+     * per-user install location and the py launcher before giving up.
+     */
+    public static String resolvePython(String configured) {
+        if (runs(configured)) return configured;
+
+        String localAppData = System.getenv("LOCALAPPDATA");
+        if (localAppData != null) {
+            Path programs = Path.of(localAppData, "Programs", "Python");
+            if (Files.isDirectory(programs)) {
+                try (var dirs = Files.list(programs)) {
+                    var candidate = dirs
+                            .map(d -> d.resolve("python.exe"))
+                            .filter(Files::exists)
+                            .map(Path::toString)
+                            .filter(KokoroVoice::runs)
+                            .findFirst();
+                    if (candidate.isPresent()) return candidate.get();
+                } catch (IOException ignored) {
+                }
+            }
+        }
+        if (runs("py")) return "py";
+        return configured; // let the launch fail with a clear message
+    }
+
+    /** True if this command starts and reports a version. */
+    private static boolean runs(String python) {
+        try {
+            Process p = new ProcessBuilder(python, "--version")
+                    .redirectErrorStream(true)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .start();
+            return p.waitFor() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
      * Kokoro speaks a touch slower than the Windows voice, so the
      * self-mute window needs to be a little more generous.
      */

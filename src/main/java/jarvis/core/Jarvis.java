@@ -97,7 +97,11 @@ public class Jarvis {
             try {
                 KokoroVoice.verify(Path.of(settings.kokoroScript),
                         Path.of(settings.kokoroModel), Path.of(settings.kokoroVoices));
-                Voice v = new KokoroVoice(settings.pythonExe,
+                String python = KokoroVoice.resolvePython(settings.pythonExe);
+                if (!python.equals(settings.pythonExe)) {
+                    System.out.println("[tts] using python at " + python);
+                }
+                Voice v = new KokoroVoice(python,
                         Path.of(settings.kokoroScript),
                         Path.of(settings.kokoroModel),
                         Path.of(settings.kokoroVoices),
