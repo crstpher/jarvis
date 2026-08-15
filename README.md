@@ -1,38 +1,48 @@
-# Jarvis — offline voice assistant for Windows
+# Jarvis — offline AI voice assistant for Windows
 
 A desktop assistant written in Java. Say **"Jarvis"** (or clap a custom
-rhythm), hear a chime, then speak a command like *"open Steam"*.
-Everything runs **offline** — no cloud APIs, no network latency, nothing
-leaves your machine.
+rhythm), hear a chime, then either fire a command — *"open Steam"* — or
+just talk to it. Everything runs **offline on your own machine**: the
+speech recognition, the language model, and the voice. Nothing you say
+leaves the PC.
 
 ## How it works
 
 ```mermaid
-flowchart LR
+flowchart TB
     MIC[Microphone thread] -->|20ms frames via BlockingQueue| ORCH{State machine}
-    ORCH -->|IDLE| WAKE[Wake word\nVosk, grammar-restricted]
-    ORCH -->|IDLE| CLAP[Clap detector\n+ pattern DFA]
+    ORCH -->|IDLE| WAKE[Wake word<br/>Vosk, grammar-restricted]
+    ORCH -->|IDLE| CLAP[Clap detector<br/>+ pattern DFA]
     WAKE -->|trigger| CHIME([chime])
     CLAP -->|trigger| CHIME
-    CHIME --> LISTEN[Full speech-to-text\nVosk + endpointer]
-    LISTEN --> MATCH[Fuzzy matcher\nLevenshtein DP]
-    MATCH --> ACT[ActionExecutor\nProcessBuilder]
-    ACT --> TTS[Windows voice\npersistent SAPI process]
+    CHIME --> DUAL[Two recognizers in parallel<br/>grammar + full vocabulary]
+    DUAL --> ROUTE{Known command?}
+    ROUTE -->|yes, confident| FAST[Fast path<br/>Levenshtein match, ~20ms]
+    ROUTE -->|no| AI[Local model via Ollama<br/>tool calling, ~350ms]
+    AI --> TOOLS[open/close apps · Spotify · time]
+    FAST --> ACT[ActionExecutor]
+    TOOLS --> ACT
+    ACT --> TTS[Piper neural voice]
+    AI -->|conversation| TTS
 ```
 
+**Two-tier routing** is what keeps it fast. Anything in `commands.json`
+executes immediately without touching the AI. Everything else — questions,
+chat, music requests, phrasings nobody anticipated — goes to a local
+language model that can call the same actions as tools.
+
 - **Audio pipeline** — a producer thread reads the mic and pushes frames
-  onto a `BlockingQueue`; the orchestrator consumes them (classic
-  producer–consumer concurrency).
-- **Wake word** — Vosk running with a grammar restricted to just
-  `jarvis` + unknown, which is cheap and rarely false-triggers.
-- **Clap activation** — an energy-spike detector (adaptive statistical
-  threshold over a rolling noise floor) feeds a **DFA over timed gaps**:
-  `"short,short"` means three quick claps. Edit the pattern in
-  `config/settings.json`.
-- **Command matching** — Levenshtein edit distance (dynamic programming)
-  so "opens team" still launches Steam.
-- **Actions** — `config/commands.json` maps phrases to actions. No code
-  changes needed to add a command.
+  onto a `BlockingQueue`; the orchestrator consumes them.
+- **Wake word** — Vosk with a grammar restricted to `jarvis` + unknown.
+- **Clap activation** — an energy-spike detector feeding a **DFA over
+  timed gaps**: `"short,short"` means three quick claps.
+- **Dual recognition** — a grammar recognizer (snaps to known commands)
+  and a full-vocabulary one (catches free speech) run on the same audio.
+- **The brain** — Qwen 2.5 7B via [Ollama](https://ollama.com), pinned in
+  VRAM so a decision takes ~350ms. Same engine PewDiePie's Odysseus
+  workspace runs on, if you want to add that later — it'll reuse this.
+- **Voice** — [Piper](https://github.com/rhasspy/piper) neural TTS,
+  offline, kept alive as one process so replies start instantly.
 
 ## Module map (MH602)
 
@@ -42,17 +52,24 @@ flowchart LR
 | Clap pattern as a DFA over timed events | CS290 Theory of Computation |
 | Levenshtein DP fuzzy matching | CS210/CS211 Algorithms & Data Structures |
 | Adaptive noise-floor threshold (EMA) | ST221 Statistics |
-| JUnit suites for FSM/matcher/distance | CS265 Software Testing |
-| Instant chime feedback, forgiving matching | CS242 User-Centred Software Engineering |
+| Local LLM, tool calling, agent loop | CS245 Introduction to AI |
+| JUnit suites for FSM/matcher/tools | CS265 Software Testing |
+| Two-tier routing, instant feedback, forgiving matching | CS242 User-Centred Software Engineering |
 
-## Setup (one time)
+## Setup
 
 Requirements: JDK 21+, Maven, a microphone.
 
 ```powershell
-./setup.ps1        # downloads the ~40 MB offline speech model
-mvn package        # builds target/jarvis-1.0.0.jar (runs the tests too)
+./setup.ps1          # offline speech model (~40 MB)
+./setup-ai.ps1       # neural voice + local language model (~4.8 GB)
+./setup-spotify.ps1  # optional: connect your Spotify account
+./setup-admin.ps1    # optional: lets Jarvis close games that run as admin
+mvn package          # builds target/jarvis-1.0.0.jar and runs the tests
 ```
+
+Ollama must be installed for the AI layer:
+`winget install --id Ollama.Ollama`
 
 ## Run
 
@@ -60,40 +77,54 @@ mvn package        # builds target/jarvis-1.0.0.jar (runs the tests too)
 ./run.ps1                # or: java -jar target/jarvis-1.0.0.jar
 ./run.ps1 --check        # environment sanity check (no mic capture)
 ./run.ps1 --mic          # live mic level meter + what the recognizer hears
-./stop.ps1               # kill any running Jarvis (say "goodbye" also works)
+./stop.ps1               # kill a running Jarvis (saying "goodbye" also works)
 ```
 
-Closing games that run as administrator (e.g. Marvel Rivals) needs a
-one-time approval — run `./setup-admin.ps1` and accept the UAC prompt.
-Re-run it whenever you add a new `close` command.
+Then: say **"Jarvis"** → wait for the chime → say anything.
 
-Then: say **"Jarvis"** → wait for the chime → say **"open steam"**.
+- *"open steam"* — fast path, no AI involved
+- *"play bohemian rhapsody"* — AI picks the Spotify tool
+- *"what's a binary search tree?"* — AI just answers
+- *"skip this song"* / *"turn it down a bit"* — AI maps intent to playback tools
 
 ## Customising
 
-### Add a command
+### Personality
+`persona` in `config/settings.json` is the whole personality dial — it's
+the system prompt. Rewrite it and Jarvis changes character.
+
+### Add a command (fast path)
 Edit `config/commands.json`:
 
 ```json
 {
   "name": "open-discord",
   "phrases": ["open discord", "launch discord"],
-  "action": { "type": "launch", "target": "C:\\Users\\you\\AppData\\Local\\Discord\\Update.exe --processStart Discord.exe" },
+  "action": { "type": "launch", "target": "discord" },
   "reply": "Opening Discord"
 }
 ```
 
-Action types: `launch` (app/URI via Windows shell), `url`, `shell`
-(PowerShell one-liner), `time`, `exit`.
+Action types: `launch`, `url`, `shell`, `close`, `time`, `exit`. The AI
+can call these too — anything you add here, it can also reach for.
 
 ### Change the clap pattern
-In `config/settings.json`, `clapPattern` is the sequence of **gaps**
-between claps: `"short,short"` = 3 quick claps,
-`"short,long,short"` = clap-clap … clap-clap. `clapSensitivity` is how
-many times louder than background noise a clap must be (raise it if it
-false-triggers, lower it if claps are missed).
+`clapPattern` is the sequence of **gaps**: `"short,short"` = 3 quick
+claps, `"short,long,short"` = clap-clap … clap-clap.
+
+### Swap the model or voice
+`ollamaModel` takes any tool-capable Ollama model (`ollama pull` it
+first). `voice` is `piper` or `sapi`; other Piper voices drop into
+`tools/piper/` and are pointed at with `piperModel`.
+
+## Privacy
+
+No cloud services, no API keys, no telemetry. The speech model, the
+language model, and the voice all run locally. The only network traffic
+is to Spotify, and only if you connect it.
 
 ## Roadmap
 - One-breath commands ("Jarvis open Steam" with no pause)
-- Porcupine wake-word engine (lower CPU when idle; needs a free Picovoice key)
-- Usage history in SQLite to rank ambiguous matches (CS285)
+- Larger Vosk model for better free-form recognition accuracy
+- Auto-start with Windows
+- SQLite usage history to rank ambiguous matches (CS285)

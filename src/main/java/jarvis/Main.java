@@ -24,6 +24,11 @@ public class Main {
             return;
         }
 
+        if (args.length > 0 && args[0].equals("--spotify-login")) {
+            spotifyLogin(settings);
+            return;
+        }
+
         if (!Files.isDirectory(Path.of(settings.modelPath))) {
             System.err.println("Speech model not found at: " + settings.modelPath);
             System.err.println("Run setup.ps1 first to download it (~40 MB, one time only).");
@@ -32,6 +37,18 @@ public class Main {
 
         CommandRegistry registry = CommandRegistry.load(Path.of("config/commands.json"));
         new Jarvis(settings, registry).run();
+    }
+
+    /** One-time Spotify consent, driven by setup-spotify.ps1. */
+    private static void spotifyLogin(Settings settings) throws Exception {
+        if (settings.spotifyClientId == null || settings.spotifyClientId.isBlank()) {
+            System.err.println("No spotifyClientId in config/settings.json - run setup-spotify.ps1.");
+            System.exit(1);
+        }
+        var auth = new jarvis.spotify.SpotifyAuth(settings.spotifyClientId,
+                Path.of("config/spotify-tokens.json"));
+        auth.authorizeInteractively();
+        System.out.println("Spotify is connected. Try: \"Jarvis, play some music\".");
     }
 
     /** Sanity check: config, model, and audio devices - without opening the mic. */
@@ -50,6 +67,23 @@ public class Main {
                 System.out.println("  - " + info.getName());
             }
         }
+
+        System.out.println("Voice: " + settings.voice
+                + (settings.voice.equalsIgnoreCase("piper")
+                    ? (Files.exists(Path.of(settings.piperExe)) ? " [OK]" : " [MISSING - run setup-ai.ps1]")
+                    : ""));
+
+        if (settings.aiEnabled) {
+            var ai = new jarvis.ai.OllamaClient(settings.ollamaUrl, settings.ollamaModel, settings.aiMaxTokens);
+            System.out.println("AI: " + settings.ollamaModel
+                    + (ai.available() ? " [OK]" : " [UNREACHABLE at " + settings.ollamaUrl + "]"));
+        } else {
+            System.out.println("AI: disabled");
+        }
+
+        System.out.println("Spotify: " + (settings.spotifyClientId == null || settings.spotifyClientId.isBlank()
+                ? "not configured - run setup-spotify.ps1"
+                : (Files.exists(Path.of("config/spotify-tokens.json")) ? "connected [OK]" : "client ID set, not authorised yet")));
 
         if (Files.isDirectory(Path.of(settings.modelPath))) {
             System.out.println("Loading speech model (first load takes a few seconds)...");

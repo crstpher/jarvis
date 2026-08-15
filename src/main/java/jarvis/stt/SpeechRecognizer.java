@@ -26,9 +26,18 @@ public class SpeechRecognizer implements AutoCloseable {
 
     public static final float SAMPLE_RATE = 16000f;
 
+    /** What was heard during a command window, from both recognizers. */
+    public record Heard(String grammar, String free) {
+        /** Prefer the free-vocabulary text; fall back to the grammar one. */
+        public String best() {
+            return free != null && !free.isBlank() ? free : grammar;
+        }
+    }
+
     private final Model model;
     private final Recognizer wakeRecognizer;
     private final Recognizer commandRecognizer;
+    private final Recognizer freeRecognizer;
     private final String wakeWord;
 
     public SpeechRecognizer(String modelPath, String wakeWord) throws IOException {
@@ -55,6 +64,8 @@ public class SpeechRecognizer implements AutoCloseable {
             grammar.add("[unk]");
             this.commandRecognizer = new Recognizer(model, SAMPLE_RATE, new Gson().toJson(grammar));
         }
+        // Unrestricted vocabulary, for anything that isn't a known command.
+        this.freeRecognizer = new Recognizer(model, SAMPLE_RATE);
     }
 
     /** Feed an idle-mode frame; true if the wake word was just heard. */
@@ -76,23 +87,36 @@ public class SpeechRecognizer implements AutoCloseable {
     }
 
     /**
-     * Feed a command-mode frame. Returns the final transcript once the
-     * endpointer detects the user has stopped speaking, else null.
+     * Feed a command-mode frame to both recognizers. Returns what was
+     * heard once the endpointer decides the user has stopped speaking,
+     * else null.
+     *
+     * Running both in parallel is what lets the assistant stay fast for
+     * known commands while still understanding free-form speech: the
+     * grammar recognizer gives a clean, snap-to-known-phrase transcript,
+     * and the full recognizer catches everything else.
      */
-    public String feedCommand(byte[] frame) {
-        if (commandRecognizer.acceptWaveForm(frame, frame.length)) {
-            return extractText(commandRecognizer.getResult());
+    public Heard feedCommand(byte[] frame) {
+        boolean grammarDone = commandRecognizer.acceptWaveForm(frame, frame.length);
+        boolean freeDone = freeRecognizer.acceptWaveForm(frame, frame.length);
+        if (grammarDone || freeDone) {
+            return new Heard(
+                    extractText(commandRecognizer.getResult()),
+                    extractText(freeRecognizer.getResult()));
         }
         return null;
     }
 
     /** Force whatever has been heard so far to be finalised (timeout path). */
-    public String finishCommand() {
-        return extractText(commandRecognizer.getFinalResult());
+    public Heard finishCommand() {
+        return new Heard(
+                extractText(commandRecognizer.getFinalResult()),
+                extractText(freeRecognizer.getFinalResult()));
     }
 
     public void resetCommand() {
         commandRecognizer.reset();
+        freeRecognizer.reset();
     }
 
     public void resetWake() {
@@ -111,6 +135,7 @@ public class SpeechRecognizer implements AutoCloseable {
     public void close() {
         wakeRecognizer.close();
         commandRecognizer.close();
+        freeRecognizer.close();
         model.close();
     }
 }

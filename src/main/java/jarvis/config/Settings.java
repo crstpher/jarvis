@@ -27,11 +27,42 @@ public class Settings {
     /** Fuzzy-match acceptance threshold (0 = exact only, 1 = accept anything). */
     public double matchThreshold = 0.4;
     /**
-     * Restrict command recognition to the phrases in commands.json.
-     * More accurate and faster; turn off only if you want free-form
-     * transcripts (e.g. for a future dictation feature).
+     * Restrict the *fast path* recognizer to the phrases in commands.json.
+     * A second, full-vocabulary recognizer always runs alongside it to
+     * catch conversation, so this only controls how the fast path listens.
      */
     public boolean strictGrammar = true;
+
+    // --- conversational AI ---------------------------------------------
+    /** Route anything that isn't a known command to the local AI. */
+    public boolean aiEnabled = true;
+    public String ollamaUrl = "http://localhost:11434";
+    public String ollamaModel = "qwen2.5:7b";
+    /** Cap on reply length; keeps spoken answers short. */
+    public int aiMaxTokens = 160;
+    /** Who Jarvis is. Edit freely — this is the personality dial. */
+    public String persona =
+            "You are Jarvis, a witty, unflappable British AI assistant running on the user's "
+            + "gaming PC. You control their apps, games and Spotify through the tools provided.\n"
+            + "Rules:\n"
+            + "- Your replies are spoken aloud, so keep them to one or two short sentences. "
+            + "Never use markdown, lists, emoji or code.\n"
+            + "- When the user wants something done, call the matching tool. Do not describe "
+            + "what you would do — just do it, then confirm briefly.\n"
+            + "- If a tool reports a failure, say what went wrong in plain words.\n"
+            + "- For chat or questions, answer directly and briefly. Dry humour is welcome; "
+            + "rambling is not.";
+
+    // --- voice ----------------------------------------------------------
+    /** "piper" for the neural voice, "sapi" for the built-in Windows one. */
+    public String voice = "piper";
+    public String piperExe = "tools/piper/piper.exe";
+    public String piperModel = "tools/piper/en_GB-alan-medium.onnx";
+    public int piperSampleRate = 22050;
+
+    // --- spotify --------------------------------------------------------
+    /** Client ID from developer.spotify.com. Blank disables Spotify. */
+    public String spotifyClientId = "";
 
     public static Settings load(Path path) {
         if (!Files.exists(path)) {

@@ -13,7 +13,7 @@ import java.nio.charset.StandardCharsets;
  * each reply costs ~0ms of process-startup latency instead of ~500ms
  * if we launched PowerShell per sentence.
  */
-public class Speaker implements AutoCloseable {
+public class Speaker implements Voice {
 
     private static final String PS_SCRIPT =
             "[Console]::InputEncoding=[System.Text.Encoding]::UTF8;" +
@@ -36,6 +36,7 @@ public class Speaker implements AutoCloseable {
     }
 
     /** Queue a sentence to be spoken (returns immediately; speech happens in the helper process). */
+    @Override
     public synchronized void say(String text) {
         try {
             stdin.write(text.replace("\r", " ").replace("\n", " "));

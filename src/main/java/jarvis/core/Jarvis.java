@@ -2,15 +2,24 @@ package jarvis.core;
 
 import jarvis.actions.ActionExecutor;
 import jarvis.actions.CommandRegistry;
+import jarvis.ai.Brain;
+import jarvis.ai.OllamaClient;
+import jarvis.ai.ToolBox;
 import jarvis.audio.AudioCapture;
 import jarvis.config.Settings;
 import jarvis.nlu.CommandMatcher;
+import jarvis.spotify.SpotifyAuth;
+import jarvis.spotify.SpotifyClient;
 import jarvis.stt.SpeechRecognizer;
+import jarvis.tts.PiperVoice;
 import jarvis.tts.Speaker;
+import jarvis.tts.Voice;
 import jarvis.util.Chime;
 import jarvis.wake.ClapDetector;
 import jarvis.wake.ClapPatternFSM;
 
+import java.nio.file.Path;
+import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -20,22 +29,32 @@ import java.util.concurrent.BlockingQueue;
  * A two-state machine drives everything:
  *   IDLE      - every frame goes to the clap detector + the
  *               grammar-restricted wake-word recognizer.
- *   LISTENING - after a wake trigger (chime!), frames go to the
- *               full-vocabulary recognizer until Vosk's endpointer
- *               says the sentence is over (or we time out), then the
- *               transcript is fuzzy-matched and the action executed.
+ *   LISTENING - after a wake trigger (chime!), frames go to both command
+ *               recognizers until the endpointer says the sentence is
+ *               over, then the sentence is routed.
+ *
+ * Routing is two-tier, which is what keeps the assistant quick:
+ *   fast path - the sentence fuzzy-matches a phrase in commands.json, so
+ *               it executes immediately (tens of milliseconds, no AI).
+ *   AI path   - anything else goes to the local model, which either
+ *               answers conversationally or calls tools to get it done.
  */
 public class Jarvis {
 
     private enum State { IDLE, LISTENING }
 
+    /** Fast path needs a confident match; a weak one is better served by the AI. */
+    private static final double FAST_PATH_FREE_THRESHOLD = 0.35;
+    private static final double FAST_PATH_GRAMMAR_THRESHOLD = 0.20;
+
     private final Settings settings;
     private final SpeechRecognizer stt;
     private final CommandMatcher matcher;
     private final ActionExecutor executor = new ActionExecutor();
-    private final Speaker speaker;
+    private final Voice voice;
     private final ClapDetector clapDetector;
     private final ClapPatternFSM clapFSM;
+    private final Brain brain; // null when the AI is off or unreachable
 
     private final BlockingQueue<byte[]> frames = new ArrayBlockingQueue<>(256);
     private final AudioCapture capture;
@@ -51,6 +70,7 @@ public class Jarvis {
     public Jarvis(Settings settings, CommandRegistry registry) throws Exception {
         this.settings = settings;
         this.capture = new AudioCapture(frames, settings.inputDevice);
+
         var grammar = settings.strictGrammar
                 ? registry.commands().stream()
                     .flatMap(c -> c.phrases().stream())
@@ -59,9 +79,63 @@ public class Jarvis {
                 : java.util.List.<String>of();
         this.stt = new SpeechRecognizer(settings.modelPath, settings.wakeWord, grammar);
         this.matcher = new CommandMatcher(registry, settings.matchThreshold);
-        this.speaker = new Speaker();
+        this.voice = buildVoice(settings);
         this.clapDetector = new ClapDetector(settings.clapSensitivity);
         this.clapFSM = settings.clapEnabled ? ClapPatternFSM.fromString(settings.clapPattern) : null;
+        this.brain = buildBrain(settings, registry);
+    }
+
+    /** Neural voice if configured and present, otherwise the Windows one. */
+    private static Voice buildVoice(Settings settings) throws Exception {
+        if ("piper".equalsIgnoreCase(settings.voice)) {
+            try {
+                Voice v = new PiperVoice(Path.of(settings.piperExe),
+                        Path.of(settings.piperModel), settings.piperSampleRate);
+                System.out.println("[tts] neural voice (piper)");
+                return v;
+            } catch (Exception e) {
+                System.err.println("[tts] piper unavailable (" + e.getMessage()
+                        + ") - falling back to the Windows voice. Run setup-ai.ps1 to install it.");
+            }
+        }
+        System.out.println("[tts] windows voice (sapi)");
+        return new Speaker();
+    }
+
+    /** Wire up the local model, if it's enabled and actually running. */
+    private Brain buildBrain(Settings settings, CommandRegistry registry) {
+        if (!settings.aiEnabled) {
+            System.out.println("[ai] disabled in settings");
+            return null;
+        }
+        OllamaClient client = new OllamaClient(settings.ollamaUrl, settings.ollamaModel, settings.aiMaxTokens);
+        if (!client.available()) {
+            System.err.println("[ai] Ollama not reachable at " + settings.ollamaUrl
+                    + " (or model " + settings.ollamaModel + " missing) - commands still work, conversation won't.");
+            return null;
+        }
+
+        SpotifyClient spotify = null;
+        if (settings.spotifyClientId != null && !settings.spotifyClientId.isBlank()) {
+            SpotifyAuth auth = new SpotifyAuth(settings.spotifyClientId,
+                    Path.of("config/spotify-tokens.json"));
+            if (auth.hasRefreshToken()) {
+                spotify = new SpotifyClient(auth);
+                System.out.println("[spotify] connected");
+            } else {
+                System.out.println("[spotify] not authorised yet - run setup-spotify.ps1");
+            }
+        }
+
+        System.out.println("[ai] " + settings.ollamaModel + " ready");
+        // Load the model into VRAM now so the first question isn't slow.
+        Thread warm = new Thread(client::warmUp, "ai-warmup");
+        warm.setDaemon(true);
+        warm.start();
+
+        return new Brain(client,
+                new ToolBox(registry, matcher, executor, spotify),
+                settings.persona);
     }
 
     public void run() {
@@ -71,7 +145,7 @@ public class Jarvis {
 
         System.out.println("Jarvis is listening. Say \"" + settings.wakeWord + "\""
                 + (clapFSM != null ? " or clap the pattern [" + settings.clapPattern + "]" : "")
-                + ", then give a command. Ctrl+C to quit.");
+                + ", then speak. Ctrl+C to quit.");
 
         try {
             while (true) {
@@ -117,43 +191,80 @@ public class Jarvis {
 
     private void listeningFrame(byte[] frame, long now) {
         if (now < skipCommandUntil) return;
-        String transcript = stt.feedCommand(frame);
-        if (transcript == null && now - listeningSince > settings.commandTimeoutMs) {
-            transcript = stt.finishCommand();
+
+        SpeechRecognizer.Heard heard = stt.feedCommand(frame);
+        if (heard == null && now - listeningSince > settings.commandTimeoutMs) {
+            heard = stt.finishCommand();
         }
-        if (transcript == null) return;
+        if (heard == null) return;
 
         long sttDoneAt = System.currentTimeMillis();
         state = State.IDLE;
         stt.resetWake();
         if (clapFSM != null) clapFSM.reset();
 
-        handleTranscript(transcript, sttDoneAt);
+        route(heard, sttDoneAt);
+        // Anything captured while thinking or speaking is stale.
+        frames.clear();
     }
 
-    private void handleTranscript(String transcript, long sttDoneAt) {
-        System.out.println("[stt] heard: \"" + transcript + "\"");
-        if (transcript.isBlank()) {
+    /** Decide between the fast path and the AI, then act. */
+    private void route(SpeechRecognizer.Heard heard, long sttDoneAt) {
+        String spoken = heard.best();
+        System.out.printf("[stt] free=\"%s\" grammar=\"%s\"%n", heard.free(), heard.grammar());
+
+        if (spoken.isBlank()) {
             reply("I didn't catch that");
             return;
         }
 
-        var match = matcher.match(transcript);
-        if (match.isEmpty()) {
+        Optional<CommandMatcher.Match> fast = fastPathMatch(heard);
+        if (fast.isPresent()) {
+            runCommand(fast.get(), sttDoneAt);
+            return;
+        }
+
+        if (brain == null) {
             reply("Sorry, I don't know that one");
             return;
         }
 
-        var m = match.get();
-        System.out.printf("[nlu] matched \"%s\" (score %.2f)%n", m.command().name(), m.score());
+        System.out.println("[ai] thinking...");
+        Optional<String> answer = brain.handle(spoken);
+        long done = System.currentTimeMillis();
+        System.out.printf("[latency] listen %dms | think %dms | wake-to-done %dms%n",
+                sttDoneAt - wakeAt, done - sttDoneAt, done - wakeAt);
+        answer.ifPresent(this::reply);
+    }
+
+    /**
+     * A confident match against a configured command. The free-vocabulary
+     * transcript is tried first because it is what the user actually said;
+     * the grammar transcript is a stricter fallback for when free-form
+     * recognition garbles a known phrase.
+     */
+    private Optional<CommandMatcher.Match> fastPathMatch(SpeechRecognizer.Heard heard) {
+        Optional<CommandMatcher.Match> free = matcher.match(heard.free());
+        if (free.isPresent() && free.get().score() <= FAST_PATH_FREE_THRESHOLD) {
+            return free;
+        }
+        Optional<CommandMatcher.Match> grammar = matcher.match(heard.grammar());
+        if (grammar.isPresent() && grammar.get().score() <= FAST_PATH_GRAMMAR_THRESHOLD) {
+            return grammar;
+        }
+        return Optional.empty();
+    }
+
+    private void runCommand(CommandMatcher.Match m, long sttDoneAt) {
+        System.out.printf("[fast] matched \"%s\" (score %.2f)%n", m.command().name(), m.score());
         try {
-            String reply = executor.execute(m.command());
+            String spoken = executor.execute(m.command());
             long done = System.currentTimeMillis();
             System.out.printf("[latency] listen %dms | act %dms | wake-to-done %dms%n",
                     sttDoneAt - wakeAt, done - sttDoneAt, done - wakeAt);
-            reply(reply);
+            reply(spoken);
         } catch (ActionExecutor.ExitRequested e) {
-            speaker.say(e.getMessage());
+            voice.say(e.getMessage());
             try { Thread.sleep(1800); } catch (InterruptedException ignored) {}
             shutdown();
             System.exit(0);
@@ -166,12 +277,12 @@ public class Jarvis {
     /**
      * Speak a reply and mute wake detection while it plays, so the
      * assistant doesn't hear its own voice through the speakers and
-     * trigger itself. Duration is a rough words-per-minute estimate.
+     * trigger itself.
      */
     private void reply(String text) {
-        long speakMs = 800 + text.split("\\s+").length * 350L;
-        muteWakeUntil = System.currentTimeMillis() + speakMs;
-        speaker.say(text);
+        System.out.println("[say] " + text);
+        muteWakeUntil = System.currentTimeMillis() + voice.estimateMillis(text);
+        voice.say(text);
         // Drop anything the wake recognizer buffered while we were talking.
         stt.resetWake();
         if (clapFSM != null) clapFSM.reset();
@@ -179,7 +290,7 @@ public class Jarvis {
 
     private void shutdown() {
         capture.stop();
-        speaker.close();
+        voice.close();
         stt.close();
     }
 }
