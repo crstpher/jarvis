@@ -1,11 +1,14 @@
 {
   "wakeWord": "jarvis",
   "modelPath": "models/vosk-model-small-en-us-0.15",
+  "freeModelPath": "models/vosk-model-en-us-0.22",
   "inputDevice": "Quadcast",
   "clapEnabled": true,
   "clapPattern": "short,short",
   "clapSensitivity": 6.0,
   "commandTimeoutMs": 6000,
+  "conversationMode": true,
+  "followUpMs": 9000,
   "matchThreshold": 0.4,
   "strictGrammar": true,
 

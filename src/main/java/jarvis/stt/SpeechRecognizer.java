@@ -35,6 +35,8 @@ public class SpeechRecognizer implements AutoCloseable {
     }
 
     private final Model model;
+    /** Optional larger model used only for free-form speech; may be null. */
+    private final Model freeModel;
     private final Recognizer wakeRecognizer;
     private final Recognizer commandRecognizer;
     private final Recognizer freeRecognizer;
@@ -52,6 +54,18 @@ public class SpeechRecognizer implements AutoCloseable {
      */
     public SpeechRecognizer(String modelPath, String wakeWord, List<String> commandPhrases)
             throws IOException {
+        this(modelPath, wakeWord, commandPhrases, null);
+    }
+
+    /**
+     * @param freeModelPath optional larger model for free-form speech. Vosk
+     *   only supports runtime grammars on the small and "lgraph" models, so
+     *   the compact model stays responsible for the wake word and the
+     *   fast-path phrases while a large model handles open conversation,
+     *   where accuracy matters far more than speed.
+     */
+    public SpeechRecognizer(String modelPath, String wakeWord, List<String> commandPhrases,
+                            String freeModelPath) throws IOException {
         LibVosk.setLogLevel(LogLevel.WARNINGS);
         this.model = new Model(modelPath);
         this.wakeWord = wakeWord.toLowerCase(Locale.ROOT);
@@ -65,7 +79,16 @@ public class SpeechRecognizer implements AutoCloseable {
             this.commandRecognizer = new Recognizer(model, SAMPLE_RATE, new Gson().toJson(grammar));
         }
         // Unrestricted vocabulary, for anything that isn't a known command.
-        this.freeRecognizer = new Recognizer(model, SAMPLE_RATE);
+        if (freeModelPath != null && !freeModelPath.isBlank()
+                && !freeModelPath.equals(modelPath)
+                && java.nio.file.Files.isDirectory(java.nio.file.Path.of(freeModelPath))) {
+            System.out.println("[stt] loading large model for conversation: " + freeModelPath);
+            this.freeModel = new Model(freeModelPath);
+            this.freeRecognizer = new Recognizer(freeModel, SAMPLE_RATE);
+        } else {
+            this.freeModel = null;
+            this.freeRecognizer = new Recognizer(model, SAMPLE_RATE);
+        }
     }
 
     /** Feed an idle-mode frame; true if the wake word was just heard. */
@@ -137,5 +160,6 @@ public class SpeechRecognizer implements AutoCloseable {
         commandRecognizer.close();
         freeRecognizer.close();
         model.close();
+        if (freeModel != null) freeModel.close();
     }
 }

@@ -19,6 +19,26 @@ public final class Chime {
         t.start();
     }
 
+    /**
+     * A quieter, single note for re-opening the mic mid-conversation.
+     * The full two-tone chime every turn would be wearing.
+     */
+    public static void soft() {
+        Thread t = new Thread(() -> {
+            AudioFormat format = new AudioFormat(16000f, 16, 1, true, false);
+            try (SourceDataLine line = AudioSystem.getSourceDataLine(format)) {
+                line.open(format);
+                line.start();
+                byte[] note = tone(880, 0.06, 16000f, 0.14);
+                line.write(note, 0, note.length);
+                line.drain();
+            } catch (Exception ignored) {
+            }
+        }, "chime-soft");
+        t.setDaemon(true);
+        t.start();
+    }
+
     private static void playBlocking() {
         float sr = 16000f;
         AudioFormat format = new AudioFormat(sr, 16, 1, true, false);
@@ -35,12 +55,16 @@ public final class Chime {
     }
 
     private static byte[] tone(double freq, double seconds, float sampleRate) {
+        return tone(freq, seconds, sampleRate, 0.35);
+    }
+
+    private static byte[] tone(double freq, double seconds, float sampleRate, double gain) {
         int n = (int) (seconds * sampleRate);
         byte[] out = new byte[n * 2];
         for (int i = 0; i < n; i++) {
             // Small fade in/out to avoid clicks.
             double env = Math.min(1.0, Math.min(i / (0.01 * sampleRate), (n - i) / (0.02 * sampleRate)));
-            short s = (short) (Math.sin(2 * Math.PI * freq * i / sampleRate) * 0.35 * env * Short.MAX_VALUE);
+            short s = (short) (Math.sin(2 * Math.PI * freq * i / sampleRate) * gain * env * Short.MAX_VALUE);
             out[i * 2] = (byte) (s & 0xff);
             out[i * 2 + 1] = (byte) (s >> 8);
         }

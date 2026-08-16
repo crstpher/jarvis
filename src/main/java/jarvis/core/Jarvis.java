@@ -69,6 +69,10 @@ public class Jarvis {
     private long muteWakeUntil;
     /** Skip command frames until this time, so the wake chime isn't transcribed. */
     private long skipCommandUntil;
+    /** In conversation mode, keep the mic open for a follow-up until this time. */
+    private long followUpUntil;
+    /** True when the current listening window was opened without a wake word. */
+    private boolean inFollowUp;
 
     public Jarvis(Settings settings, CommandRegistry registry) throws Exception {
         this.settings = settings;
@@ -80,7 +84,8 @@ public class Jarvis {
                     .map(CommandMatcher::normalise)
                     .distinct().toList()
                 : java.util.List.<String>of();
-        this.stt = new SpeechRecognizer(settings.modelPath, settings.wakeWord, grammar);
+        this.stt = new SpeechRecognizer(settings.modelPath, settings.wakeWord, grammar,
+                settings.freeModelPath);
         this.matcher = new CommandMatcher(registry, settings.matchThreshold);
         this.voice = buildVoice(settings);
         this.clapDetector = new ClapDetector(settings.clapSensitivity);
@@ -235,19 +240,30 @@ public class Jarvis {
         if (now < muteWakeUntil) {
             return; // still speaking a reply; don't listen to ourselves
         }
+
+        // Mid-conversation: the mic reopens on its own, no wake word needed.
+        if (followUpUntil > now) {
+            System.out.println("[conv] listening for a follow-up...");
+            inFollowUp = true;
+            followUpUntil = 0;
+            wake(true);
+            return;
+        }
+        followUpUntil = 0;
+
         if (clapFSM != null && clapDetector.process(frame, now) && clapFSM.onClap(now)) {
             System.out.println("[wake] clap pattern recognised");
-            wake();
+            wake(false);
             return;
         }
         if (stt.feedWake(frame)) {
             System.out.println("[wake] wake word heard");
-            wake();
+            wake(false);
         }
     }
 
-    private void wake() {
-        Chime.play();
+    private void wake(boolean followUp) {
+        if (followUp) Chime.soft(); else Chime.play();
         frames.clear();            // drop stale audio; listen to what comes next
         stt.resetCommand();
         state = State.LISTENING;
@@ -290,6 +306,13 @@ public class Jarvis {
         System.out.printf("[stt] free=\"%s\" grammar=\"%s\"%n", heard.free(), heard.grammar());
 
         if (spoken.isBlank()) {
+            if (inFollowUp) {
+                // Silence just means the conversation is over. Saying
+                // "I didn't catch that" into an empty room is worse.
+                System.out.println("[conv] no follow-up - back to wake word");
+                inFollowUp = false;
+                return;
+            }
             reply("I didn't catch that");
             return;
         }
@@ -357,7 +380,14 @@ public class Jarvis {
      */
     private void reply(String text) {
         System.out.println("[say] " + text);
-        muteWakeUntil = System.currentTimeMillis() + voice.estimateMillis(text);
+        long now = System.currentTimeMillis();
+        muteWakeUntil = now + voice.estimateMillis(text);
+        // Once the reply finishes, hold the mic open briefly so the user
+        // can just carry on talking.
+        if (settings.conversationMode) {
+            followUpUntil = muteWakeUntil + settings.followUpMs;
+        }
+        inFollowUp = false;
         voice.say(text);
         // Drop anything the wake recognizer buffered while we were talking.
         stt.resetWake();

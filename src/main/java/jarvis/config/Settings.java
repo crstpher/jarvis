@@ -15,6 +15,13 @@ public class Settings {
 
     public String wakeWord = "jarvis";
     public String modelPath = "models/vosk-model-small-en-us-0.15";
+    /**
+     * Larger model used only for free-form speech. Blank falls back to
+     * modelPath. Vosk supports runtime grammars only on the small models,
+     * so the compact one keeps the wake word and fast path while this one
+     * handles conversation.
+     */
+    public String freeModelPath = "models/vosk-model-en-us-0.22";
     /** Substring of the microphone name to capture from; "" = Windows default device. */
     public String inputDevice = "";
     public boolean clapEnabled = true;
@@ -24,6 +31,13 @@ public class Settings {
     public double clapSensitivity = 6.0;
     /** Give up listening for a command after this long. */
     public long commandTimeoutMs = 6000;
+    /**
+     * Stay listening after replying, so a conversation flows without
+     * repeating the wake word every turn. Ends on silence or "goodbye".
+     */
+    public boolean conversationMode = true;
+    /** How long to wait for a follow-up before returning to wake-word mode. */
+    public long followUpMs = 9000;
     /** Fuzzy-match acceptance threshold (0 = exact only, 1 = accept anything). */
     public double matchThreshold = 0.4;
     /**
