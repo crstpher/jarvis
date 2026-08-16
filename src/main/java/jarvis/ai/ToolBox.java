@@ -22,17 +22,22 @@ import java.util.stream.Collectors;
  */
 public class ToolBox {
 
+    /** Tool name whose answer is spoken verbatim rather than re-summarised. */
+    public static final String KNOWLEDGE_TOOL = "answer_question";
+
     private final CommandRegistry registry;
     private final CommandMatcher matcher;
     private final ActionExecutor executor;
     private final SpotifyClient spotify; // may be null if not configured
+    private final GeminiClient gemini;   // may be null if not configured
 
     public ToolBox(CommandRegistry registry, CommandMatcher matcher,
-                   ActionExecutor executor, SpotifyClient spotify) {
+                   ActionExecutor executor, SpotifyClient spotify, GeminiClient gemini) {
         this.registry = registry;
         this.matcher = matcher;
         this.executor = executor;
         this.spotify = spotify;
+        this.gemini = gemini;
     }
 
     public List<ToolSpec> specs() {
@@ -52,6 +57,18 @@ public class ToolBox {
         tools.add(new ToolSpec("get_time",
                 "Get the current time of day.",
                 args -> "It's " + LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm a"))));
+
+        if (gemini != null && gemini.configured()) {
+            tools.add(new ToolSpec(KNOWLEDGE_TOOL,
+                    "Look up the answer to any question about the world - facts, people, "
+                            + "places, history, science, definitions, explanations, current "
+                            + "affairs, maths, or anything you are unsure about. Prefer this "
+                            + "over answering from memory whenever the user asks a question "
+                            + "that is not about their own PC, games or music.",
+                    this::answerQuestion)
+                    .param("question", "string",
+                            "The user's question, rephrased as a clear standalone question", true));
+        }
 
         if (spotify != null) {
             tools.add(new ToolSpec("spotify_play",
@@ -100,6 +117,12 @@ public class ToolBox {
             return "No command is configured for that. Known: " + knownTargets(verb, 15);
         }
         return executor.execute(match.get().command());
+    }
+
+    private String answerQuestion(JsonObject args) throws Exception {
+        String question = str(args, "question");
+        if (question.isBlank()) return "I need to know what the question is.";
+        return gemini.ask(question);
     }
 
     private String spotifyPlay(JsonObject args) throws Exception {

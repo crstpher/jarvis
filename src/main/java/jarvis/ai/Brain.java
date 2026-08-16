@@ -25,12 +25,14 @@ public class Brain {
     private final OllamaClient client;
     private final ToolBox toolBox;
     private final String systemPrompt;
+    private final boolean speakAnswersVerbatim;
     private final Deque<JsonObject> history = new ArrayDeque<>();
 
-    public Brain(OllamaClient client, ToolBox toolBox, String persona) {
+    public Brain(OllamaClient client, ToolBox toolBox, String persona, boolean speakAnswersVerbatim) {
         this.client = client;
         this.toolBox = toolBox;
         this.systemPrompt = persona;
+        this.speakAnswersVerbatim = speakAnswersVerbatim;
     }
 
     /**
@@ -59,11 +61,20 @@ public class Brain {
                 for (OllamaClient.ToolCall call : reply.toolCalls()) {
                     String result = runTool(tools, call);
                     System.out.printf("[tool] %s -> %s%n", call.name(), result);
+
                     JsonObject toolMsg = new JsonObject();
                     toolMsg.addProperty("role", "tool");
                     toolMsg.addProperty("content", result);
                     history.addLast(toolMsg);
                     trimHistory();
+
+                    // A looked-up answer is spoken as returned. Passing a
+                    // factual answer back through the small local model to be
+                    // reworded costs a round trip and risks altering the fact.
+                    if (speakAnswersVerbatim && ToolBox.KNOWLEDGE_TOOL.equals(call.name())) {
+                        remember("assistant", result);
+                        return Optional.of(result);
+                    }
                 }
             }
             return Optional.of("That took more steps than I expected. Try asking a simpler way.");

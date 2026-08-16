@@ -7,3 +7,4 @@ models/
 dependency-reduced-pom.xml
 tools/
 config/spotify-tokens.json
+config/secrets.json

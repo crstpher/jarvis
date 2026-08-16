@@ -29,6 +29,12 @@ public class Main {
             return;
         }
 
+        // Ask a question straight through to Gemini - for testing the key.
+        if (args.length > 1 && args[0].equals("--ask")) {
+            askOnce(settings, String.join(" ", java.util.Arrays.copyOfRange(args, 1, args.length)));
+            return;
+        }
+
         // Speak a line and exit - for auditioning voices without a microphone.
         if (args.length > 0 && args[0].equals("--say")) {
             String line = args.length > 1
@@ -46,6 +52,22 @@ public class Main {
 
         CommandRegistry registry = CommandRegistry.load(Path.of("config/commands.json"));
         new Jarvis(settings, registry).run();
+    }
+
+    /** Send one question to Gemini and print the answer. Used by setup-gemini.ps1. */
+    private static void askOnce(Settings settings, String question) throws Exception {
+        var secrets = jarvis.config.Secrets.load(Path.of("config/secrets.json"));
+        String key = secrets.get("geminiApiKey", "GEMINI_API_KEY");
+        if (key.isBlank()) {
+            System.err.println("No Gemini API key found - run setup-gemini.ps1.");
+            System.exit(1);
+        }
+        var gemini = new jarvis.ai.GeminiClient(key, settings.geminiModel);
+        long start = System.currentTimeMillis();
+        String answer = gemini.ask(question);
+        System.out.println("Q: " + question);
+        System.out.println("A: " + answer);
+        System.out.println("(" + (System.currentTimeMillis() - start) + " ms)");
     }
 
     /** One-time Spotify consent, driven by setup-spotify.ps1. */

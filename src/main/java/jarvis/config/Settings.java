@@ -74,6 +74,21 @@ public class Settings {
     public String piperModel = "tools/piper/en_GB-alan-medium.onnx";
     public int piperSampleRate = 22050;
 
+    // --- online knowledge -----------------------------------------------
+    /**
+     * Let Jarvis consult Google's Gemini for general-knowledge questions
+     * the local model can't answer well. The API key lives in
+     * config/secrets.json, not here. Turn off to stay strictly offline.
+     */
+    public boolean geminiEnabled = true;
+    public String geminiModel = "gemini-2.5-flash";
+    /**
+     * Speak looked-up answers exactly as returned. Turning this off sends
+     * them back through the local model to be reworded in character, which
+     * sounds more butler-ish but can distort the facts.
+     */
+    public boolean speakAnswersVerbatim = true;
+
     // --- spotify --------------------------------------------------------
     /** Client ID from developer.spotify.com. Blank disables Spotify. */
     public String spotifyClientId = "";

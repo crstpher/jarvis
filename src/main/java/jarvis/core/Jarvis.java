@@ -3,9 +3,11 @@ package jarvis.core;
 import jarvis.actions.ActionExecutor;
 import jarvis.actions.CommandRegistry;
 import jarvis.ai.Brain;
+import jarvis.ai.GeminiClient;
 import jarvis.ai.OllamaClient;
 import jarvis.ai.ToolBox;
 import jarvis.audio.AudioCapture;
+import jarvis.config.Secrets;
 import jarvis.config.Settings;
 import jarvis.nlu.CommandMatcher;
 import jarvis.spotify.SpotifyAuth;
@@ -148,6 +150,20 @@ public class Jarvis {
             return null;
         }
 
+        Secrets secrets = Secrets.load(Path.of("config/secrets.json"));
+
+        GeminiClient gemini = null;
+        if (settings.geminiEnabled) {
+            String key = secrets.get("geminiApiKey", "GEMINI_API_KEY");
+            if (key.isBlank()) {
+                System.out.println("[gemini] no API key - questions answered locally only "
+                        + "(run setup-gemini.ps1 for better answers)");
+            } else {
+                gemini = new GeminiClient(key, settings.geminiModel);
+                System.out.println("[gemini] " + settings.geminiModel + " ready for questions");
+            }
+        }
+
         SpotifyClient spotify = null;
         if (settings.spotifyClientId != null && !settings.spotifyClientId.isBlank()) {
             SpotifyAuth auth = new SpotifyAuth(settings.spotifyClientId,
@@ -167,8 +183,9 @@ public class Jarvis {
         warm.start();
 
         return new Brain(client,
-                new ToolBox(registry, matcher, executor, spotify),
-                settings.persona);
+                new ToolBox(registry, matcher, executor, spotify, gemini),
+                settings.persona,
+                settings.speakAnswersVerbatim);
     }
 
     /**
