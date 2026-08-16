@@ -51,6 +51,22 @@ class CommandMatcherTest {
     }
 
     @Test
+    void repeatedWordsDoNotCrash() {
+        // Real speech repeats words constantly. Set.of() throws on
+        // duplicates, which crashed the whole assistant mid-sentence.
+        assertDoesNotThrow(() -> matcher().match("now listen to are we there are"));
+        assertDoesNotThrow(() -> matcher().match("open open open steam steam"));
+        assertDoesNotThrow(() -> matcher().match("the the the"));
+    }
+
+    @Test
+    void repeatedWordsStillMatchCorrectly() {
+        var m = matcher().match("open open steam");
+        assertTrue(m.isPresent());
+        assertEquals("open-steam", m.get().command().name());
+    }
+
+    @Test
     void gibberishIsRejected() {
         assertTrue(matcher().match("make me a sandwich right now").isEmpty());
     }

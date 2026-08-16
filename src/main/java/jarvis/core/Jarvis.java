@@ -271,7 +271,15 @@ public class Jarvis {
         stt.resetWake();
         if (clapFSM != null) clapFSM.reset();
 
-        route(heard, sttDoneAt);
+        try {
+            route(heard, sttDoneAt);
+        } catch (Exception e) {
+            // One malformed sentence must never take the assistant down;
+            // it stays listening and says so.
+            System.err.println("[route] failed on \"" + heard.best() + "\": " + e);
+            e.printStackTrace();
+            reply("Something went wrong there, sir.");
+        }
         // Anything captured while thinking or speaking is stale.
         frames.clear();
     }

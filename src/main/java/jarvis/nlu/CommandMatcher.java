@@ -3,6 +3,8 @@ package jarvis.nlu;
 import jarvis.actions.CommandRegistry;
 import jarvis.actions.CommandSpec;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
@@ -64,7 +66,9 @@ public class CommandMatcher {
     static double tokenScore(String text, String phrase) {
         String[] phraseWords = phrase.split(" ");
         if (phraseWords.length < 2) return 1.0;
-        Set<String> textWords = Set.of(text.split(" "));
+        // A HashSet, not Set.of: ordinary speech repeats words ("are we
+        // there are"), and Set.of throws on duplicates.
+        Set<String> textWords = new HashSet<>(Arrays.asList(text.split(" ")));
         int missing = 0;
         for (String w : phraseWords) {
             if (!textWords.contains(w)) missing++;
