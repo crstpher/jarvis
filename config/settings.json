@@ -29,7 +29,7 @@
   "piperSampleRate": 22050,
 
   "geminiEnabled": true,
-  "geminiModel": "gemini-2.5-flash",
+  "geminiModel": "gemini-flash-lite-latest",
   "speakAnswersVerbatim": true,
 
   "spotifyClientId": ""

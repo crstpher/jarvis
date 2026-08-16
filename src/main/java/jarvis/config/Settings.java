@@ -81,7 +81,16 @@ public class Settings {
      * config/secrets.json, not here. Turn off to stay strictly offline.
      */
     public boolean geminiEnabled = true;
-    public String geminiModel = "gemini-2.5-flash";
+    /**
+     * Flash-Lite, and an alias rather than a pinned version.
+     *
+     * Google retires specific model names while still listing them
+     * (gemini-2.5-flash 404s), so "latest" avoids future breakage. Lite
+     * is chosen for consistency: full Flash reasons before answering and
+     * measured anywhere from 2 to 19 seconds, which is unusable when the
+     * answer is spoken. Lite averages under a second.
+     */
+    public String geminiModel = "gemini-flash-lite-latest";
     /**
      * Speak looked-up answers exactly as returned. Turning this off sends
      * them back through the local model to be reworded in character, which

@@ -32,7 +32,13 @@ public class GeminiClient {
             + "If the answer is a number, date or name, lead with it. "
             + "If you genuinely do not know, say so in one sentence.";
 
+    /**
+     * HTTP/1.1 is forced: negotiating HTTP/2 against this endpoint makes
+     * the JDK client hang until the request timeout, while the identical
+     * request over 1.1 returns in about two seconds.
+     */
     private final HttpClient http = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(5))
             .build();
     private final String apiKey;
@@ -48,10 +54,27 @@ public class GeminiClient {
     }
 
     /**
+     * Ask a question, retrying briefly if Google is momentarily busy.
+     *
      * @param question what the user asked
      * @return the answer, phrased for speech
      */
     public String ask(String question) throws Exception {
+        IllegalStateException last = null;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            try {
+                return askOnce(question);
+            } catch (IllegalStateException e) {
+                last = e;
+                // Only "busy" is worth retrying; a bad key or model will not fix itself.
+                if (!e.getMessage().contains("busy")) throw e;
+                Thread.sleep(400L * attempt);
+            }
+        }
+        throw last;
+    }
+
+    private String askOnce(String question) throws Exception {
         JsonObject part = new JsonObject();
         part.addProperty("text", question);
         JsonArray parts = new JsonArray();
@@ -71,7 +94,10 @@ public class GeminiClient {
         systemInstruction.add("parts", sysParts);
 
         JsonObject generationConfig = new JsonObject();
-        generationConfig.addProperty("maxOutputTokens", 200);
+        // Current Flash models reason before answering, and those thinking
+        // tokens come out of this budget. At 200 the model spent the lot
+        // thinking and returned a single word; 800 leaves room to answer.
+        generationConfig.addProperty("maxOutputTokens", 800);
         generationConfig.addProperty("temperature", 0.4);
 
         JsonObject body = new JsonObject();
@@ -80,7 +106,7 @@ public class GeminiClient {
         body.add("generationConfig", generationConfig);
 
         HttpRequest req = HttpRequest.newBuilder(URI.create(String.format(ENDPOINT, model)))
-                .timeout(Duration.ofSeconds(20))
+                .timeout(Duration.ofSeconds(30))
                 .header("Content-Type", "application/json")
                 .header("x-goog-api-key", apiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(new Gson().toJson(body)))
@@ -90,6 +116,11 @@ public class GeminiClient {
         return switch (resp.statusCode()) {
             case 200 -> extractText(resp.body());
             case 400 -> throw new IllegalStateException("Google rejected the request; the API key may be wrong");
+            case 403 -> throw new IllegalStateException("Google refused the API key");
+            // Google retires model names while still listing them, so a 404
+            // means the configured model, not a bad URL.
+            case 404 -> throw new IllegalStateException(
+                    "Google has no model called " + model + "; try gemini-flash-latest");
             case 429 -> throw new IllegalStateException("I've hit Google's daily question limit");
             case 503 -> throw new IllegalStateException("Google's AI is busy at the moment");
             default -> throw new IllegalStateException("Google returned error " + resp.statusCode());
