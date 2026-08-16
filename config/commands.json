@@ -169,6 +169,18 @@
       "reply": "Closing Steam"
     },
     {
+      "name": "open-spotify",
+      "phrases": ["open spotify", "launch spotify", "start spotify"],
+      "action": { "type": "launch", "target": "spotify:" },
+      "reply": "Opening Spotify"
+    },
+    {
+      "name": "close-spotify",
+      "phrases": ["close spotify", "quit spotify"],
+      "action": { "type": "close", "target": "Spotify.exe" },
+      "reply": "Closing Spotify"
+    },
+    {
       "name": "open-browser",
       "phrases": ["open browser", "open chrome", "open the internet"],
       "action": { "type": "url", "target": "https://www.google.com" },

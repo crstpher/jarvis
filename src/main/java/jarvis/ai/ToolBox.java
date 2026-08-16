@@ -58,7 +58,7 @@ public class ToolBox {
                 "Get the current time of day.",
                 args -> "It's " + LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm a"))));
 
-        if (gemini != null && gemini.configured()) {
+        {
             tools.add(new ToolSpec(KNOWLEDGE_TOOL,
                     "Look up the answer to any question about the world - facts, people, "
                             + "places, history, science, definitions, explanations, current "
@@ -70,7 +70,12 @@ public class ToolBox {
                             "The user's question, rephrased as a clear standalone question", true));
         }
 
-        if (spotify != null) {
+        // Spotify tools are registered even when Spotify is not connected.
+        // Omitting them leaves the model with no way to act on a music
+        // request and, in practice, it invents one instead - claiming to
+        // play songs that never played. A tool that honestly reports being
+        // unavailable gives it a true result to relay.
+        {
             tools.add(new ToolSpec("spotify_play",
                     "Search Spotify and start playing music. Use this whenever the user "
                             + "asks to hear a song, artist, album or playlist.",
@@ -90,7 +95,7 @@ public class ToolBox {
 
             tools.add(new ToolSpec("spotify_now_playing",
                     "Find out which song is currently playing.",
-                    args -> spotify.nowPlaying()));
+                    args -> spotify == null ? spotifyUnavailable() : spotify.nowPlaying()));
         }
 
         return tools;
@@ -120,16 +125,28 @@ public class ToolBox {
     }
 
     private String answerQuestion(JsonObject args) throws Exception {
+        if (gemini == null || !gemini.configured()) {
+            return "UNAVAILABLE: no lookup service is configured, so this question cannot be "
+                    + "answered. Tell the user you have no way to look that up.";
+        }
         String question = str(args, "question");
         if (question.isBlank()) return "I need to know what the question is.";
         return gemini.ask(question);
     }
 
+    /** The honest answer when Spotify was never connected. */
+    private String spotifyUnavailable() {
+        return "UNAVAILABLE: Spotify is not connected, so nothing was played or changed. "
+                + "Tell the user Spotify isn't set up and that they need to run setup-spotify.";
+    }
+
     private String spotifyPlay(JsonObject args) throws Exception {
+        if (spotify == null) return spotifyUnavailable();
         return spotify.play(str(args, "query"), str(args, "type"));
     }
 
     private String spotifyControl(JsonObject args) throws Exception {
+        if (spotify == null) return spotifyUnavailable();
         String action = str(args, "action").toLowerCase();
         return switch (action) {
             case "pause" -> spotify.pause();
@@ -141,6 +158,7 @@ public class ToolBox {
     }
 
     private String spotifyVolume(JsonObject args) throws Exception {
+        if (spotify == null) return spotifyUnavailable();
         int percent;
         try {
             percent = args.get("percent").getAsInt();
