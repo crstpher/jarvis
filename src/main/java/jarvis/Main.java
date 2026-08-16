@@ -50,6 +50,9 @@ public class Main {
             System.exit(1);
         }
 
+        // Mirror the console to logs/ so the session can be reviewed later.
+        jarvis.util.SessionLog.start(Path.of("logs"));
+
         CommandRegistry registry = CommandRegistry.load(Path.of("config/commands.json"));
         new Jarvis(settings, registry).run();
     }

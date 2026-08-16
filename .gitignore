@@ -4,6 +4,7 @@ models/
 *.iml
 .vscode/
 *.log
+logs/
 dependency-reduced-pom.xml
 tools/
 config/spotify-tokens.json
