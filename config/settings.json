@@ -23,7 +23,7 @@
   "kokoroScript": "tools/kokoro/kokoro_server.py",
   "kokoroModel": "tools/kokoro/kokoro-v1.0.onnx",
   "kokoroVoices": "tools/kokoro/voices-v1.0.bin",
-  "kokoroVoiceName": "bm_daniel",
+  "kokoroVoiceName": "bm_george",
   "kokoroSpeed": 1.0,
   "piperExe": "tools/piper/piper.exe",
   "piperModel": "tools/piper/en_GB-alan-medium.onnx",

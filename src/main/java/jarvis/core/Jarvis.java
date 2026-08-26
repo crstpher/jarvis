@@ -48,8 +48,13 @@ public class Jarvis {
 
     private enum State { IDLE, LISTENING }
 
-    /** Fast path needs a confident match; a weak one is better served by the AI. */
-    private static final double FAST_PATH_FREE_THRESHOLD = 0.35;
+    /**
+     * Fast path needs a confident match; a weak one is better served by
+     * the AI. 0.30, not 0.35: "search for marvel rivals patch notes"
+     * scored 0.33 against "play marvel rivals" and launched the game
+     * instead of searching.
+     */
+    private static final double FAST_PATH_FREE_THRESHOLD = 0.30;
     private static final double FAST_PATH_GRAMMAR_THRESHOLD = 0.20;
 
     private static final Path SETTINGS_PATH = Path.of("config/settings.json");
@@ -388,21 +393,24 @@ public class Jarvis {
     }
 
     /**
-     * A confident match against a configured command. The free-vocabulary
-     * transcript is tried first because it is what the user actually said;
-     * the grammar transcript is a stricter fallback for when free-form
-     * recognition garbles a known phrase.
+     * A confident match against a configured command, taking the better
+     * of the two transcripts.
+     *
+     * Both are always evaluated: checking the free transcript first and
+     * returning early once picked the wrong voice - the free recognizer
+     * heard "louis" (weak tie, wrong command won) while the grammar
+     * recognizer had heard "change your voice to lewis" exactly.
      */
     private Optional<CommandMatcher.Match> fastPathMatch(SpeechRecognizer.Heard heard) {
-        Optional<CommandMatcher.Match> free = matcher.match(heard.free());
-        if (free.isPresent() && free.get().score() <= FAST_PATH_FREE_THRESHOLD) {
-            return free;
-        }
-        Optional<CommandMatcher.Match> grammar = matcher.match(heard.grammar());
-        if (grammar.isPresent() && grammar.get().score() <= FAST_PATH_GRAMMAR_THRESHOLD) {
-            return grammar;
-        }
-        return Optional.empty();
+        Optional<CommandMatcher.Match> free = matcher.match(heard.free())
+                .filter(m -> m.score() <= FAST_PATH_FREE_THRESHOLD);
+        Optional<CommandMatcher.Match> grammar = matcher.match(heard.grammar())
+                .filter(m -> m.score() <= FAST_PATH_GRAMMAR_THRESHOLD);
+
+        if (free.isEmpty()) return grammar;
+        if (grammar.isEmpty()) return free;
+        // On a tie, trust the grammar transcript: it snaps to exact phrases.
+        return grammar.get().score() <= free.get().score() ? grammar : free;
     }
 
     private void runCommand(CommandMatcher.Match m, long sttDoneAt) {

@@ -71,9 +71,27 @@ public class CommandMatcher {
         Set<String> textWords = new HashSet<>(Arrays.asList(text.split(" ")));
         int missing = 0;
         for (String w : phraseWords) {
-            if (!textWords.contains(w)) missing++;
+            if (!containsFuzzy(textWords, w)) missing++;
         }
         return missing / (double) phraseWords.length;
+    }
+
+    /**
+     * A phrase word counts as present if the transcript has it, or has a
+     * word one edit away ("louis" for "lewis", "marble" for "marvel") -
+     * mishearings are usually a single sound off. Short words stay exact:
+     * at three letters, one edit reaches half the dictionary.
+     */
+    private static boolean containsFuzzy(Set<String> textWords, String word) {
+        if (textWords.contains(word)) return true;
+        if (word.length() < 4) return false;
+        for (String t : textWords) {
+            if (t.length() >= 4 && Math.abs(t.length() - word.length()) <= 1
+                    && Levenshtein.distance(t, word) <= 1) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static String normalise(String s) {

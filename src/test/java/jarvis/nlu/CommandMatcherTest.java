@@ -17,7 +17,17 @@ class CommandMatcherTest {
         var time = new CommandSpec("what-time",
                 List.of("what time is it", "tell me the time"),
                 new CommandSpec.ActionSpec("time", ""), "");
-        return new CommandMatcher(new CommandRegistry(List.of(steam, time)), 0.4);
+        var lewis = new CommandSpec("voice-lewis",
+                List.of("change your voice to lewis", "voice to lewis"),
+                new CommandSpec.ActionSpec("voice", "bm_lewis"), "");
+        var george = new CommandSpec("voice-george",
+                List.of("change your voice to george", "voice to george"),
+                new CommandSpec.ActionSpec("voice", "bm_george"), "");
+        var rivals = new CommandSpec("play-marvel-rivals",
+                List.of("open marvel rivals", "play marvel rivals"),
+                new CommandSpec.ActionSpec("launch", "steam://rungameid/2767030"), "Launching");
+        return new CommandMatcher(
+                new CommandRegistry(List.of(steam, time, george, lewis, rivals)), 0.4);
     }
 
     @Test
@@ -75,6 +85,25 @@ class CommandMatcherTest {
     void blankTranscriptIsRejected() {
         assertTrue(matcher().match("").isEmpty());
         assertTrue(matcher().match("jarvis").isEmpty()); // wake word alone is not a command
+    }
+
+    @Test
+    void misheardNameStillPicksTheRightVoice() {
+        // The recognizer heard "louis"; one edit from "lewis". This
+        // previously tied lewis with george and george won by list order.
+        var m = matcher().match("change your voice to louis");
+        assertTrue(m.isPresent());
+        assertEquals("voice-lewis", m.get().command().name());
+    }
+
+    @Test
+    void searchSentenceMustNotConfidentlyMatchLaunch() {
+        // "search for marvel rivals patch notes" launched the game three
+        // times in one session. It may still weakly match, but never below
+        // the 0.30 fast-path bar - the AI must get it instead.
+        var m = matcher().match("search for marvel rivals patch notes");
+        m.ifPresent(match -> assertTrue(match.score() > 0.30,
+                "scored " + match.score() + " - would hijack the fast path"));
     }
 
     @Test
