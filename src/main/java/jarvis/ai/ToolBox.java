@@ -58,6 +58,13 @@ public class ToolBox {
                 "Get the current time of day.",
                 args -> "It's " + LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm a"))));
 
+        tools.add(new ToolSpec("search_web",
+                "Open the web browser showing search results. Use when the user asks to "
+                        + "search for, look up, google, or find something online - as opposed "
+                        + "to asking a question they want answered aloud.",
+                this::searchWeb)
+                .param("query", "string", "What to search for", true));
+
         {
             tools.add(new ToolSpec(KNOWLEDGE_TOOL,
                     "Look up the answer to any question about the world - facts, people, "
@@ -121,6 +128,12 @@ public class ToolBox {
         if (match.isEmpty()) {
             return "No command is configured for that. Known: " + knownTargets(verb, 15);
         }
+        // Sensitive commands only run through the exact voice phrase, where
+        // the assistant asks for spoken confirmation first.
+        if (match.get().command().confirm()) {
+            return "BLOCKED: this action is protected. Tell the user to say the exact "
+                    + "command phrase, which will ask for their confirmation.";
+        }
         return executor.execute(match.get().command());
     }
 
@@ -132,6 +145,15 @@ public class ToolBox {
         String question = str(args, "question");
         if (question.isBlank()) return "I need to know what the question is.";
         return gemini.ask(question);
+    }
+
+    private String searchWeb(JsonObject args) throws Exception {
+        String query = str(args, "query");
+        if (query.isBlank()) return "I need a search query.";
+        String url = "https://www.google.com/search?q="
+                + java.net.URLEncoder.encode(query, java.nio.charset.StandardCharsets.UTF_8);
+        new ProcessBuilder("cmd", "/c", "start", "", url).start();
+        return "Browser opened with search results for " + query;
     }
 
     /** The honest answer when Spotify was never connected. */

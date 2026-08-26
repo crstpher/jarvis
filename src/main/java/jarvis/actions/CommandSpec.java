@@ -14,7 +14,13 @@ import java.util.List;
  *   time   - speak the current time (no target needed)
  *   exit   - shut the assistant down
  */
-public record CommandSpec(String name, List<String> phrases, ActionSpec action, String reply) {
+public record CommandSpec(String name, List<String> phrases, ActionSpec action, String reply,
+                          boolean confirm) {
+
+    /** Most commands don't need confirmation. */
+    public CommandSpec(String name, List<String> phrases, ActionSpec action, String reply) {
+        this(name, phrases, action, reply, false);
+    }
 
     public record ActionSpec(String type, String target) {}
 }

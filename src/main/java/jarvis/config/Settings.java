@@ -48,8 +48,15 @@ public class Settings {
     public boolean strictGrammar = true;
 
     // --- conversational AI ---------------------------------------------
-    /** Route anything that isn't a known command to the local AI. */
+    /** Route anything that isn't a known command to the AI. */
     public boolean aiEnabled = true;
+    /**
+     * Which AI drives conversation:
+     *   "auto"   - Gemini when a key is configured, local Ollama otherwise
+     *   "gemini" - always Google's Gemini (online, best quality, free tier)
+     *   "ollama" - always the local model (fully offline)
+     */
+    public String brainProvider = "auto";
     public String ollamaUrl = "http://localhost:11434";
     public String ollamaModel = "qwen2.5:7b";
     /** Cap on reply length; keeps spoken answers short. */
@@ -112,9 +119,24 @@ public class Settings {
      */
     public boolean speakAnswersVerbatim = true;
 
+    // --- dashboard ------------------------------------------------------
+    /** The local control panel. Bound to 127.0.0.1 only - never the network. */
+    public boolean dashboardEnabled = true;
+    public int dashboardPort = 7580;
+
     // --- spotify --------------------------------------------------------
     /** Client ID from developer.spotify.com. Blank disables Spotify. */
     public String spotifyClientId = "";
+
+    /** Persist the current values (used by the dashboard's edits). */
+    public void save(Path path) {
+        try {
+            Files.writeString(path, new com.google.gson.GsonBuilder()
+                    .setPrettyPrinting().create().toJson(this));
+        } catch (IOException e) {
+            System.err.println("[config] could not save " + path + ": " + e.getMessage());
+        }
+    }
 
     public static Settings load(Path path) {
         if (!Files.exists(path)) {

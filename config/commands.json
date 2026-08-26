@@ -182,7 +182,7 @@
     },
     {
       "name": "open-browser",
-      "phrases": ["open browser", "open chrome", "open the internet"],
+      "phrases": ["open browser", "open chrome", "open google", "open the internet"],
       "action": { "type": "url", "target": "https://www.google.com" },
       "reply": "Opening your browser"
     },
@@ -208,7 +208,14 @@
       "name": "lock-screen",
       "phrases": ["lock the screen", "lock my computer"],
       "action": { "type": "shell", "target": "rundll32.exe user32.dll,LockWorkStation" },
-      "reply": "Locking"
+      "reply": "Locking",
+      "confirm": true
+    },
+    {
+      "name": "open-dashboard",
+      "phrases": ["open the dashboard", "open dashboard", "open your settings", "show your settings"],
+      "action": { "type": "url", "target": "http://127.0.0.1:7580" },
+      "reply": "Dashboard is up, sir"
     },
     {
       "name": "what-time",

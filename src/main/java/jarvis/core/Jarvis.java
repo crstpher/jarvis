@@ -4,6 +4,8 @@ import jarvis.actions.ActionExecutor;
 import jarvis.actions.CommandRegistry;
 import jarvis.ai.Brain;
 import jarvis.ai.GeminiClient;
+import jarvis.ai.GeminiBrain;
+import jarvis.ai.OllamaBrain;
 import jarvis.ai.OllamaClient;
 import jarvis.ai.ToolBox;
 import jarvis.audio.AudioCapture;
@@ -50,14 +52,22 @@ public class Jarvis {
     private static final double FAST_PATH_FREE_THRESHOLD = 0.35;
     private static final double FAST_PATH_GRAMMAR_THRESHOLD = 0.20;
 
+    private static final Path SETTINGS_PATH = Path.of("config/settings.json");
+
     private final Settings settings;
     private final SpeechRecognizer stt;
     private final CommandMatcher matcher;
     private final ActionExecutor executor = new ActionExecutor();
-    private final Voice voice;
+    private volatile Voice voice;
     private final ClapDetector clapDetector;
     private final ClapPatternFSM clapFSM;
     private final Brain brain; // null when the AI is off or unreachable
+
+    /** Master switch, driven from the dashboard: false = deaf until re-enabled. */
+    private volatile boolean listening = true;
+    /** Recent activity for the dashboard feed. */
+    private final java.util.concurrent.ConcurrentLinkedDeque<String> events =
+            new java.util.concurrent.ConcurrentLinkedDeque<>();
 
     private final BlockingQueue<byte[]> frames = new ArrayBlockingQueue<>(256);
     private final AudioCapture capture;
@@ -73,6 +83,8 @@ public class Jarvis {
     private long followUpUntil;
     /** True when the current listening window was opened without a wake word. */
     private boolean inFollowUp;
+    /** A confirm-flagged command awaiting a spoken yes or no. */
+    private CommandMatcher.Match pendingConfirm;
 
     public Jarvis(Settings settings, CommandRegistry registry) throws Exception {
         this.settings = settings;
@@ -90,7 +102,7 @@ public class Jarvis {
         this.voice = buildVoice(settings);
         this.clapDetector = new ClapDetector(settings.clapSensitivity);
         this.clapFSM = settings.clapEnabled ? ClapPatternFSM.fromString(settings.clapPattern) : null;
-        this.brain = buildBrain(settings, registry);
+        this.brain = createBrain(settings, registry, matcher, executor);
     }
 
     /**
@@ -142,31 +154,17 @@ public class Jarvis {
         return new Speaker();
     }
 
-    /** Wire up the local model, if it's enabled and actually running. */
-    private Brain buildBrain(Settings settings, CommandRegistry registry) {
+    /**
+     * Wire up the conversational brain: Gemini (online, best quality) or
+     * the local Ollama model, per settings, falling back sensibly when
+     * one is unavailable. Static so --chat can test a brain without the
+     * microphone or speech models.
+     */
+    public static Brain createBrain(Settings settings, CommandRegistry registry,
+                                    CommandMatcher matcher, ActionExecutor executor) {
         if (!settings.aiEnabled) {
             System.out.println("[ai] disabled in settings");
             return null;
-        }
-        OllamaClient client = new OllamaClient(settings.ollamaUrl, settings.ollamaModel, settings.aiMaxTokens);
-        if (!client.available()) {
-            System.err.println("[ai] Ollama not reachable at " + settings.ollamaUrl
-                    + " (or model " + settings.ollamaModel + " missing) - commands still work, conversation won't.");
-            return null;
-        }
-
-        Secrets secrets = Secrets.load(Path.of("config/secrets.json"));
-
-        GeminiClient gemini = null;
-        if (settings.geminiEnabled) {
-            String key = secrets.get("geminiApiKey", "GEMINI_API_KEY");
-            if (key.isBlank()) {
-                System.out.println("[gemini] no API key - questions answered locally only "
-                        + "(run setup-gemini.ps1 for better answers)");
-            } else {
-                gemini = new GeminiClient(key, settings.geminiModel);
-                System.out.println("[gemini] " + settings.geminiModel + " ready for questions");
-            }
         }
 
         SpotifyClient spotify = null;
@@ -181,16 +179,39 @@ public class Jarvis {
             }
         }
 
-        System.out.println("[ai] " + settings.ollamaModel + " ready");
+        Secrets secrets = Secrets.load(Path.of("config/secrets.json"));
+        String geminiKey = settings.geminiEnabled
+                ? secrets.get("geminiApiKey", "GEMINI_API_KEY") : "";
+
+        GeminiClient geminiLookup = geminiKey.isBlank()
+                ? null : new GeminiClient(geminiKey, settings.geminiModel);
+        ToolBox toolBox = new ToolBox(registry, matcher, executor, spotify, geminiLookup);
+
+        String provider = settings.brainProvider == null ? "auto" : settings.brainProvider.toLowerCase();
+
+        // Gemini first when allowed and configured: markedly better judgement
+        // and knowledge than a local 7B, still free. Ollama is the offline path.
+        if (!provider.equals("ollama") && !geminiKey.isBlank()) {
+            System.out.println("[ai] brain: Gemini (" + settings.geminiModel + ", online)");
+            return new GeminiBrain(geminiKey, settings.geminiModel, toolBox, settings.persona);
+        }
+        if (provider.equals("gemini")) {
+            System.err.println("[ai] brainProvider=gemini but no API key - falling back to local");
+        }
+
+        OllamaClient client = new OllamaClient(settings.ollamaUrl, settings.ollamaModel, settings.aiMaxTokens);
+        if (!client.available()) {
+            System.err.println("[ai] Ollama not reachable at " + settings.ollamaUrl
+                    + " (or model " + settings.ollamaModel + " missing) - commands still work, conversation won't.");
+            return null;
+        }
+        System.out.println("[ai] brain: " + settings.ollamaModel + " (local)");
         // Load the model into VRAM now so the first question isn't slow.
         Thread warm = new Thread(client::warmUp, "ai-warmup");
         warm.setDaemon(true);
         warm.start();
-
-        return new Brain(client,
-                new ToolBox(registry, matcher, executor, spotify, gemini),
-                settings.persona,
-                settings.speakAnswersVerbatim);
+        return new OllamaBrain(client, toolBox, settings.persona,
+                settings.speakAnswersVerbatim, settings.ollamaModel + " (local)");
     }
 
     /**
@@ -216,9 +237,14 @@ public class Jarvis {
         captureThread.setDaemon(true);
         captureThread.start();
 
+        if (settings.dashboardEnabled) {
+            jarvis.server.JarvisServer.start(this, settings.dashboardPort);
+        }
+
         System.out.println("Jarvis is listening. Say \"" + settings.wakeWord + "\""
                 + (clapFSM != null ? " or clap the pattern [" + settings.clapPattern + "]" : "")
                 + ", then speak. Ctrl+C to quit.");
+        note("Jarvis started");
 
         try {
             while (true) {
@@ -237,6 +263,9 @@ public class Jarvis {
     }
 
     private void idleFrame(byte[] frame, long now) {
+        if (!listening) {
+            return; // switched off from the dashboard
+        }
         if (now < muteWakeUntil) {
             return; // still speaking a reply; don't listen to ourselves
         }
@@ -304,6 +333,7 @@ public class Jarvis {
     private void route(SpeechRecognizer.Heard heard, long sttDoneAt) {
         String spoken = heard.best();
         System.out.printf("[stt] free=\"%s\" grammar=\"%s\"%n", heard.free(), heard.grammar());
+        if (!spoken.isBlank()) note("Heard: " + spoken);
 
         if (spoken.isBlank()) {
             if (inFollowUp) {
@@ -317,8 +347,29 @@ public class Jarvis {
             return;
         }
 
+        // A sensitive command is waiting on a yes or no.
+        if (pendingConfirm != null) {
+            CommandMatcher.Match confirmed = pendingConfirm;
+            pendingConfirm = null;
+            if (jarvis.nlu.ConfirmWords.isYes(spoken)) {
+                runCommand(confirmed, sttDoneAt);
+                return;
+            }
+            if (jarvis.nlu.ConfirmWords.isNo(spoken)) {
+                reply("Very well, sir.");
+                return;
+            }
+            // Changed the subject: drop the pending action, handle what was said.
+            System.out.println("[confirm] cancelled by unrelated speech");
+        }
+
         Optional<CommandMatcher.Match> fast = fastPathMatch(heard);
         if (fast.isPresent()) {
+            if (fast.get().command().confirm()) {
+                pendingConfirm = fast.get();
+                reply("Shall I " + fast.get().command().name().replace('-', ' ') + ", sir?");
+                return;
+            }
             runCommand(fast.get(), sttDoneAt);
             return;
         }
@@ -380,11 +431,12 @@ public class Jarvis {
      */
     private void reply(String text) {
         System.out.println("[say] " + text);
+        note("Jarvis: " + text);
         long now = System.currentTimeMillis();
         muteWakeUntil = now + voice.estimateMillis(text);
         // Once the reply finishes, hold the mic open briefly so the user
         // can just carry on talking.
-        if (settings.conversationMode) {
+        if (settings.conversationMode && listening) {
             followUpUntil = muteWakeUntil + settings.followUpMs;
         }
         inFollowUp = false;
@@ -392,6 +444,73 @@ public class Jarvis {
         // Drop anything the wake recognizer buffered while we were talking.
         stt.resetWake();
         if (clapFSM != null) clapFSM.reset();
+    }
+
+    private void note(String line) {
+        String stamp = java.time.LocalTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
+        events.addLast(stamp + "  " + line);
+        while (events.size() > 40) events.pollFirst();
+    }
+
+    // --- dashboard interface -------------------------------------------
+
+    public boolean isListening() {
+        return listening;
+    }
+
+    /** Turn the microphone routing on or off (the dashboard toggle). */
+    public synchronized void setListening(boolean enabled) {
+        if (listening == enabled) return;
+        listening = enabled;
+        if (!enabled) {
+            state = State.IDLE;
+            followUpUntil = 0;
+            pendingConfirm = null;
+            stt.resetWake();
+        }
+        note(enabled ? "Listening enabled" : "Listening disabled");
+        voice.say(enabled ? "Listening, sir." : "Going quiet, sir.");
+    }
+
+    /** Switch the Kokoro voice and speak a sample in it. */
+    public synchronized String switchVoice(String voiceName) {
+        String previous = settings.kokoroVoiceName;
+        settings.voice = "kokoro";
+        settings.kokoroVoiceName = voiceName;
+        try {
+            Voice fresh = buildVoice(settings);
+            Voice old = voice;
+            voice = fresh;
+            old.close();
+            settings.save(SETTINGS_PATH);
+            note("Voice changed to " + voiceName);
+            voice.say("This is how I sound now, sir.");
+            return null;
+        } catch (Exception e) {
+            settings.kokoroVoiceName = previous;
+            return "Could not switch voice: " + e.getMessage();
+        }
+    }
+
+    /** Replace the personality, live and persisted. */
+    public synchronized void setPersona(String persona) {
+        settings.persona = persona;
+        settings.save(SETTINGS_PATH);
+        if (brain != null) brain.setPersona(persona);
+        note("Personality updated");
+    }
+
+    public Settings settings() {
+        return settings;
+    }
+
+    public String brainName() {
+        return brain == null ? "none" : brain.name();
+    }
+
+    public java.util.List<String> recentEvents() {
+        return new java.util.ArrayList<>(events);
     }
 
     private void shutdown() {

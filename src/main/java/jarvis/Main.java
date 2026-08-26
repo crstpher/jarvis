@@ -35,6 +35,25 @@ public class Main {
             return;
         }
 
+        // One text exchange with the configured brain - tests the whole AI
+        // path (tool calling included) without the microphone or speech models.
+        if (args.length > 1 && args[0].equals("--chat")) {
+            CommandRegistry reg = CommandRegistry.load(Path.of("config/commands.json"));
+            var matcher = new jarvis.nlu.CommandMatcher(reg, settings.matchThreshold);
+            var brain = jarvis.core.Jarvis.createBrain(settings, reg, matcher,
+                    new jarvis.actions.ActionExecutor());
+            if (brain == null) {
+                System.err.println("No brain available.");
+                System.exit(1);
+            }
+            String text = String.join(" ", java.util.Arrays.copyOfRange(args, 1, args.length));
+            long start = System.currentTimeMillis();
+            System.out.println("YOU:    " + text);
+            System.out.println("JARVIS: " + brain.handle(text).orElse("(silence)"));
+            System.out.println("(" + brain.name() + ", " + (System.currentTimeMillis() - start) + " ms)");
+            return;
+        }
+
         // Speak a line and exit - for auditioning voices without a microphone.
         if (args.length > 0 && args[0].equals("--say")) {
             String line = args.length > 1

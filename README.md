@@ -28,8 +28,40 @@ flowchart TB
 
 **Two-tier routing** is what keeps it fast. Anything in `commands.json`
 executes immediately without touching the AI. Everything else — questions,
-chat, music requests, phrasings nobody anticipated — goes to a local
-language model that can call the same actions as tools.
+chat, music requests, phrasings nobody anticipated — goes to the brain,
+which can call the same actions as tools.
+
+**Two brains, pick per settings** (`brainProvider`): Google's **Gemini**
+(online, free tier, markedly better judgement and knowledge) or the local
+**Qwen via Ollama** (fully offline). `auto` uses Gemini when a key is
+configured and falls back to local otherwise.
+
+## Dashboard
+
+A local control panel at **http://127.0.0.1:7580** (say *"open the
+dashboard"*): toggle whether Jarvis is listening, switch his voice and
+hear it immediately, edit his personality live, and watch a feed of what
+he heard versus what he did.
+
+## Security
+
+- **Local by design** — wake word, speech recognition, and the voice run
+  on this machine. With the local brain, nothing leaves the PC; with the
+  Gemini brain, conversation text goes to Google and nothing else.
+- **The dashboard binds to 127.0.0.1 only** — nothing on the network can
+  see or control the assistant.
+- **Sensitive commands confirm first** — anything marked `"confirm": true`
+  in commands.json (e.g. locking the screen) asks *"Shall I …, sir?"* and
+  requires a spoken yes. The AI cannot bypass this: protected commands
+  only run through the exact phrase.
+- **No invented actions** — every capability is always registered and
+  reports honestly when it can't act, and the persona forbids claiming an
+  action without a tool call behind it.
+- **Secrets stay out of git** — API keys live in `config/secrets.json`
+  (gitignored) or environment variables; Spotify uses PKCE so there is no
+  client secret at all; session logs are gitignored.
+- **The AI has no shell** — it can only invoke the commands you configured
+  and the fixed tools (Spotify, search, time, questions).
 
 - **Audio pipeline** — a producer thread reads the mic and pushes frames
   onto a `BlockingQueue`; the orchestrator consumes them.
@@ -61,8 +93,10 @@ language model that can call the same actions as tools.
 Requirements: JDK 21+, Maven, a microphone.
 
 ```powershell
-./setup.ps1          # offline speech model (~40 MB)
-./setup-ai.ps1       # neural voice + local language model (~4.8 GB)
+./setup-speech.ps1   # speech models (small 40 MB + large 1.8 GB)
+./setup-voice.ps1    # Kokoro neural voice (needs Python)
+./setup-ai.ps1       # local language model via Ollama (~4.7 GB, offline brain)
+./setup-gemini.ps1   # free Google AI key (online brain + question answering)
 ./setup-spotify.ps1  # optional: connect your Spotify account
 ./setup-admin.ps1    # optional: lets Jarvis close games that run as admin
 mvn package          # builds target/jarvis-1.0.0.jar and runs the tests

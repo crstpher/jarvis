@@ -70,6 +70,22 @@ public class ToolSpec {
         return tool;
     }
 
+    /**
+     * The same declaration in the shape Gemini's function calling wants:
+     * no outer wrapper, and schema types as uppercase enums.
+     */
+    public JsonObject toGeminiJson() {
+        JsonObject fn = toJson().getAsJsonObject("function").deepCopy();
+        JsonObject parameters = fn.getAsJsonObject("parameters");
+        parameters.addProperty("type", "OBJECT");
+        JsonObject properties = parameters.getAsJsonObject("properties");
+        for (String key : properties.keySet()) {
+            JsonObject p = properties.getAsJsonObject(key);
+            p.addProperty("type", p.get("type").getAsString().toUpperCase(java.util.Locale.ROOT));
+        }
+        return fn;
+    }
+
     /** What actually runs when the model picks this tool. */
     @FunctionalInterface
     public interface ToolHandler {
