@@ -418,6 +418,9 @@ public class Jarvis {
             try { Thread.sleep(1800); } catch (InterruptedException ignored) {}
             shutdown();
             System.exit(0);
+        } catch (ActionExecutor.VoiceChangeRequested e) {
+            String failure = switchVoice(e.getMessage());
+            if (failure != null) reply("I'm afraid that voice isn't available, sir.");
         } catch (Exception e) {
             System.err.println("[action] failed: " + e.getMessage());
             reply("That didn't work");

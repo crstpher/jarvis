@@ -212,6 +212,42 @@
       "confirm": true
     },
     {
+      "name": "open-discord",
+      "phrases": ["open discord", "launch discord", "start discord"],
+      "action": { "type": "launch", "target": "discord://" },
+      "reply": "Opening Discord"
+    },
+    {
+      "name": "close-discord",
+      "phrases": ["close discord", "quit discord"],
+      "action": { "type": "close", "target": "Discord.exe" },
+      "reply": "Closing Discord"
+    },
+    {
+      "name": "voice-george",
+      "phrases": ["change your voice to george", "switch your voice to george", "voice to george", "use the george voice"],
+      "action": { "type": "voice", "target": "bm_george" },
+      "reply": ""
+    },
+    {
+      "name": "voice-lewis",
+      "phrases": ["change your voice to lewis", "switch your voice to lewis", "voice to lewis", "use the lewis voice"],
+      "action": { "type": "voice", "target": "bm_lewis" },
+      "reply": ""
+    },
+    {
+      "name": "voice-daniel",
+      "phrases": ["change your voice to daniel", "switch your voice to daniel", "voice to daniel", "use the daniel voice"],
+      "action": { "type": "voice", "target": "bm_daniel" },
+      "reply": ""
+    },
+    {
+      "name": "voice-fable",
+      "phrases": ["change your voice to fable", "switch your voice to fable", "voice to fable", "use the fable voice"],
+      "action": { "type": "voice", "target": "bm_fable" },
+      "reply": ""
+    },
+    {
       "name": "open-dashboard",
       "phrases": ["open the dashboard", "open dashboard", "open your settings", "show your settings"],
       "action": { "type": "url", "target": "http://127.0.0.1:7580" },

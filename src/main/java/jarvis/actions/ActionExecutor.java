@@ -17,6 +17,15 @@ public class ActionExecutor {
         public ExitRequested(String reply) { super(reply); }
     }
 
+    /**
+     * Thrown for the "voice" action: switching the speaking voice needs
+     * the orchestrator (it owns the Voice object), so it is signalled up
+     * rather than performed here. The message is the target voice name.
+     */
+    public static class VoiceChangeRequested extends RuntimeException {
+        public VoiceChangeRequested(String voiceName) { super(voiceName); }
+    }
+
     public String execute(CommandSpec cmd) throws IOException {
         CommandSpec.ActionSpec action = cmd.action();
         String reply = cmd.reply() != null ? cmd.reply() : "Done";
@@ -34,6 +43,7 @@ public class ActionExecutor {
                 reply = "It's " + time;
             }
             case "exit" -> throw new ExitRequested(reply);
+            case "voice" -> throw new VoiceChangeRequested(action.target());
             default -> {
                 return "I don't know how to handle action type " + action.type();
             }

@@ -134,7 +134,12 @@ public class ToolBox {
             return "BLOCKED: this action is protected. Tell the user to say the exact "
                     + "command phrase, which will ask for their confirmation.";
         }
-        return executor.execute(match.get().command());
+        try {
+            return executor.execute(match.get().command());
+        } catch (ActionExecutor.VoiceChangeRequested e) {
+            return "Voice changes go through the direct phrase. Tell the user to say "
+                    + "'change your voice to " + e.getMessage().replace("bm_", "") + "'.";
+        }
     }
 
     private String answerQuestion(JsonObject args) throws Exception {
